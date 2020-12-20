@@ -1,0 +1,79 @@
+\documentclass[11pt]{jarticle}
+
+\usepackage[dvipdfmx]{graphicx}
+\usepackage{listings}
+\usepackage{url}
+
+\lstset{
+    basicstyle={\ttfamily\small}, %書体の指定
+    frame=tRBl, %フレームの指定
+    framesep=10pt, %フレームと中身（コード）の間隔
+    breaklines=true, %行が長くなった場合の改行
+    linewidth=16cm, %フレームの横幅
+    lineskip=-0.5ex, %行間の調整
+    tabsize=2 %Tabを何文字幅にするかの指定
+}
+
+\setlength{\oddsidemargin}{-6.35mm}
+\setlength{\textwidth}{171.9mm}
+
+\begin{document}
+
+\title{3D画像処理}
+\author{09430565\\大橋虎ノ介}
+\date{\number\year 年\number\month 月\number\day 日}
+\maketitle
+
+\section{エピポーラ拘束}
+
+一方の画像上のｍと同一の物体を指すもう一方の画像上のｍ’が満たすべき条件
+
+\section{基本行列，基礎行列}
+
+一方のカメラから目標点への方向ベクトルを$\tilde{x}$とする．
+もう一方のカメラから目標点への方向ベクトルは$\tilde{x'}=R\tilde{x}+t$である．
+ここで$R$は回転行列$t$は平行移動である.
+
+\[\tilde{x}^{T}(t\times(R\tilde{x}+t))=0\]
+
+\[[t]_{\times}=
+  \left(
+    \begin{array}{ccc}
+      0 & -t_{3} & t_{2}\\
+      t_{3} & 0 & -t_{1} \\
+      -t_{2} & t_{1} & 0
+    \end{array}
+  \right)
+\]
+を用いると\[\tilde{x}^{T}([t]\times(R\tilde{x}+t))=\tilde{x}^{T}E\tilde{x'}=0\]
+これをエピポーラ方程式といい$E$を基本行列と呼ぶ．
+
+異なるカメラのディジタル画像上の点間の幾何関係を表現するのが基礎行列Fである．
+
+\[F=(A^{-1})^{T}E(A')^{-1}\]
+
+\section{ホモグラフィ，ホモグラフィ行列}
+
+ホモグラフィとは，平面の射影変換を用いて別の平面に射影すること．
+空間の点がある平面上にある．
+$\tilde{m'}~A'(R+\frac{tn^{T}}{h})A^{-1}\tilde{m}$
+カメラから平面へ垂線を下した時
+
+\noindent
+$h$:平面までの距離\\
+$n$:垂線方向の単位ベクトル\\
+$A'(R+\frac{tn^{T}}{h})A^{-1}$:ホモグラフィ行列\\
+
+\section{$E=[t]_{\times}R$を展開}
+
+\[[t]_{\times}R=
+  \left(
+    \begin{array}{ccc}
+      -t_{3}R_{10}+t_{2}R_{20} & -t_{3}R_{11}+t_{2}R_{21} & -t_{3}R_{12}+t_{2}R_{22} \\
+      t_{3}R_{00}-t_{1}R_{20} & t_{3}R_{01}-t_{1}R_{21} & t_{3}R_{02}-t_{1}R_{22} \\
+      -t_{2}R_{00}+t_{1}R_{10} & -t_{2}R_{01}+t_{1}R_{11} & -t_{2}R_{02}+t_{1}R_{12}
+    \end{array}
+  \right)
+\]
+
+\end{document}

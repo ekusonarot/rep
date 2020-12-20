@@ -1,0 +1,762 @@
+\documentclass[11pt]{jarticle}
+
+\usepackage[dvipdfmx]{graphicx}
+\usepackage{listings}
+
+\lstset{
+    basicstyle={\ttfamily\small}, %書体の指定
+    %frame=tRBl, %フレームの指定
+    %framesep=10pt, %フレームと中身（コード）の間隔
+    breaklines=true, %行が長くなった場合の改行
+    linewidth=16cm, %フレームの横幅
+    lineskip=-0.5ex, %行間の調整
+    tabsize=2 %Tabを何文字幅にするかの指定
+}
+\renewcommand{\lstlistingname}{リスト}
+\setlength{\oddsidemargin}{-6.35mm}
+\setlength{\textwidth}{160.0mm}
+
+\begin{document}
+
+\title{情報工学実験C\\ネットワークプログラミング}
+\author{09430565\\大橋虎ノ介}
+\date{提出日\number\year 年\number\month 月\number\day 日\\
+締切日 2020年 11月 16日}
+
+\maketitle
+\newpage
+
+\section{概要}
+
+本実験では，TCP/IPによるネットワークプログラミングについて学習した．
+また，クライアントサーバモデルの仕組みを学習し名簿管理プログラムを
+サーバ側とクライアント側で処理を記述した．
+最後に発展課題として，多数のクライアントからの要求を処理できるように
+サーバプログラムを拡張した．
+
+\section{クライアント・サーバモデルの通信の仕組み}
+
+クライアントサーバモデルとは，クライアントとサーバを相互にネットワークで接続するコンピュータネットワークモデルである．
+クライアントはサーバに処理を要求し，受け取った結果を利用して処理を行う．サーバはクライアントから要求された処理を行い結果を返す．
+
+クライアントサーバ間ではプロトコルにしたがって通信を行う．プロトコルとはネットワークを介してコンピュータ同士が通信を行ううえで，相互に決められた約束事の集合である．
+
+\section{プログラムの作成方針}\label{sec:policy}
+
+\subsection{クライアント}
+
+クライアントプログラムは，ユーザの入力をサーバに送信しサーバからの応答を出力する．
+処理の内容は以下の通り，終了するコマンドが入力されるまでの間サーバとの接続を保持し，2番目の処理を繰り返し行う．
+
+作成の手順としては，まずhttpリクエストを送り，サーバからのレスポンスを出力するプログラムを作成する．
+次にそれをベースに名簿管理プログラムがあるサーバと通信を行うプログラムを作成した．
+
+\begin{enumerate}
+    \item サーバに接続
+    \item サーバに処理を要求し，応答を出力(\ref{sec:process}節)
+    \item 接続を切断しプログラムを終了
+\end{enumerate}
+
+\subsubsection{サーバに処理を要求し，応答を出力} \label{sec:process}
+
+ここでは，ユーザの入力をサーバに送信し，その返答を出力する．
+入力は\%から始まるコマンドのみ受け付ける．
+
+サーバからの応答が，複数に分けて送られてくる場合がある．
+最後のメッセージの末尾を"$\backslash r\backslash n\backslash r\backslash n$"と定めることで，
+メッセージの受信が終わったことを判定することができる．
+
+\subsection{サーバ}
+
+サーバプログラムは，クライアントからの要求に対して適切な処理を行い，結果を返答する．
+処理内容は以下のとおりであり，クライアントと接続している間，2番目の処理を繰り返し行う．
+
+発展課題の多重要求の受け付けには，プロセスを生成するforkシステムコールを用いて解決する．
+クライアントからの接続要求が発生したとき，forkで子プロセスを生成する．子プロセスは処理2を行い，
+親プロセスは処理1に戻り，次のクライアントからの接続要求を待機する．
+クライアントと切断した子プロセスはexit(0)で終了する．
+
+\begin{enumerate}
+    \item クライアントからの要求受付
+    \item 適切な処理を行い，結果を返答する(\ref{sec:response}節)
+    \item 1に戻り，クライアントからの要求を受け付ける
+\end{enumerate}
+
+
+\subsubsection{適切な処理を行い，結果を返答する} \label{sec:response}
+
+ここでは\%から始まるコマンドを受け付け，コマンドに対して適切な処理を行い返答する．
+もともとの名簿管理プログラムでは，各処理をそれぞれの関数で処理し，結果等の出力があればで標準出力に
+出力していた．
+
+今回は結果やメッセージをクライアント側に送信しなければならない．そこで，
+メッセージの送信やエラー処理を行う関数を定義し，名簿管理プログラム内のprintf関数を置き換えることにした．
+
+\section{プログラムおよび，その説明}
+
+プログラムリストは\ref{sec:program}節に添付している．以下では，
+クライアントサーバ間でやり取りするプロトコルとプログラムの主な流れについて説明する．
+
+\subsection{プロトコル}
+
+クライアントからサーバへの処理のリクエストは以下の形式である．\%の後に一文字のコマンド，
+引数をとるコマンドの場合はスペースを開けて引数を入力する．コマンドの詳細は\ref{sec:command}節で述べる．
+\begin{center}
+    \%[コマンド] [引数]
+\end{center}
+
+サーバからクライアントへのレスポンスは何回かに分けて送られてくる場合がある．
+クライアント側が，メッセージの受信が終わったことを判定するために最後のメッセージの
+末尾を"$\backslash r\backslash n\backslash r\backslash n$"とする．
+
+\subsection{コマンド} \label{sec:command}
+
+実装したコマンドは6つある．コマンド一覧を表\ref{table:command}に示す．
+
+\begin{table}[h] \caption{コマンド一覧} \label{table:command}
+    \begin{center}
+        \begin{tabular}{l|l|l} \hline
+            コマンド & 解説 & 引数 \\ \hline \hline
+            \%Q & サーバから切断 & なし \\ 
+            \%C & プロファイルの数を表示 & なし \\ 
+            \%P & プロファイルを表示 & プロファイル件数(0以上の整数) \\
+            \%R & ファイルの読み込み & ファイル名 \\
+            \%W & ファイルの書き込み & ファイル名 \\
+            \%F & 検索 & キーワード \\ \hline
+        \end{tabular}
+    \end{center}
+\end{table}
+
+\subsection{クライアントプログラム}
+
+クライアントプログラムは\ref{sec:program}節のリスト\ref{client}に添付している．
+
+21行目gethostbyname関数から41行目のconnect関数の間で，名前解決を行いサーバへ接続をする．
+
+48行目から75行目のfor文でサーバと通信を行う．60行目でユーザーが\%Qを入力するとループを抜ける．
+
+62行目から73行目のfor文でサーバからの応答を連続して受け付けるようにしている．71行目でメッセージの末尾が
+"$\backslash r\backslash n\backslash r\backslash n$"であればループを抜けるようにしている．
+
+\subsection{サーバプログラム}
+
+サーバプログラムは\ref{sec:program}節のリスト\ref{server}に添付している．
+
+53行目sendMsg関数は文字列のポインタを受け取り，クライアントに文字列を送信する関数である．
+内部でsendシステムコールを呼び出し，エラーが発生するとエラー内容を出力し，ファイルディスクリプタを閉じ
+プロセスを終了する．
+
+83行目から306行目は，各コマンドを処理する関数を記述している．
+
+331行目から405行目で通信を行う．
+332行目から358行目でソケットを作成し，クライアントからの接続を待ち受け状態にする．
+
+360行目から401行目ではクライアントからの接続を受け付けている．
+
+クライアントと接続状態にあるとき，372行目から395行目をループし，\%Qコマンドが送られてくると
+ループを抜ける．
+
+多数のクライアントからの要求を処理する発展課題はforkシステムコールを用いて，
+クライアントのやり取りを子プロセスが行うことで解決した．
+
+\section{プログラムの使用方法}
+
+クライアントプログラムは引数としてホスト名を与える．
+実行が確認できたら，表\ref{table:command}にあるコマンドを入力することで
+対応する処理をサーバが行う．リスト\ref{client_exec}は実行した例である．
+
+\begin{lstlisting}[caption=クライアントプログラム実行例,label=client_exec]
+    $ ./client localhost
+    localhost>%R sample.csv
+    file: sample.csv read
+
+
+    localhost>%P 3
+    Id    : 5100046
+    Name  : The Bridge
+    Birth : 1845-11-02
+    Addr  : 14 Seafield Road Longman Inverness
+    Com.  : SEN Unit 2.0 Open
+    Id    : 5100127
+    Name  : Bower Primary School
+    Birth : 1908-01-19
+    Addr  : Bowermadden Bower Caithness
+    Com.  : 01955 641225 Primary 25 2.6 Open
+    Id    : 5100224
+    Name  : Canisbay Primary School
+    Birth : 1928-07-05
+    Addr  : Canisbay Wick
+    Com.  : 01955 611337 Primary 56 3.5 Open
+
+
+    localhost>%F 5100046
+    Id    : 5100046
+    Name  : The Bridge
+    Birth : 1845-11-02
+    Addr  : 14 Seafield Road Longman Inverness
+    Com.  : SEN Unit 2.0 Open
+\end{lstlisting}
+
+サーバプログラムは引数を何も取らない．ターミナルでフォアグランド実行することで
+クライアントから接続されたことや切断されたことが確認できる．その様子をリスト\ref{server_exec}
+に示す．
+
+\begin{lstlisting}[caption=サーバプログラムの実行例,label=server_exec]
+    $ ./server 
+    [INFO] CONNECTED!!!
+    [INFO] DISCONNECTED!!!
+\end{lstlisting}
+
+
+\section{プログラムの作成過程に関する考察}
+
+\ref{sec:policy}節で述べた実装方針に基づいて，実装を行った．
+しかし，実装にあたって改良できる点があった．本節ではクライアントサーバプログラムの
+作成過程において検討した内容及び，考察した内容について述べる．
+
+\subsection{サーバからのメッセージの送信}
+
+\%Pコマンドを実行した際，すべてのprofileが表示されるまでに時間がかかっていると感じた．
+原因として，サーバからメッセージを少ない文字数で大量に送り付けたためだと考えた．
+そこで，送信する関数として，新たに19行目sendMsg関数を定義した．
+
+この関数は引数の文字列をその都度送信するのではなく一度保存する．
+保存した文字列の長さが1024を超えるときにのみ送信することで，全体の送信回数を減らせる．
+改良前は464408文字を14430回で送信していたが，改良後は1回で約1024文字送信するので
+送信回数が453回に減らせる．つまり，送信時間が約30分の1になるはずである．
+
+改良の結果を，表\ref{table:Q}に示す．
+サーバ側の送信時間は，改良前に比べて約30分の1の処理時間に短縮することができた．
+しかし，クライアント側ではそれほどの効果は得られなかった．おそらく，送受信の
+速度よりも，printf関数に時間がかかっているのだと考えられる．
+
+\begin{table}[h] \caption{\%Q実行時の処理時間} \label{table:Q}
+    \begin{center}
+        \begin{tabular}{l|l|l} \hline
+             & 改良前[ms] & 改良後[ms] \\ \hline \hline
+            サーバ側送信 & 0.128906 & 0.003906 \\ 
+            クライアント側表示 & 0.105469 & 0.074219 \\ 
+        \end{tabular}
+    \end{center}
+\end{table}
+
+\section{得られた結果に関する考察}
+
+演習課題のプログラムについて仕様と要件をいずれも満たしていることをプログラムの説明及び使用方法における
+実行例によって示した．
+ここでは，forkを使用した多重受け付けについて考察を述べる．
+
+発展課題である多数クライアントからの要求を処理する方法として，forkシステムコールを用いた．
+今回の実装には2つの問題点がある．
+
+1つめは，OSの管理するプロセスのリストを埋めつくすと新たにプロセスを生成できなくなってしまうことである．
+たとえば，クライアントから大量の接続要求があった場合，その分だけ子プロセスを生成する．
+したがって，同時接続できるクライアントの上限はプロセスリストの大きさに依存する．
+また，クライアント側が\%Qコマンド以外の方法で切断したとき，サーバ側ではプロセスを終了できない．
+なので，クライアントが正しい手順で終了しなければ，プロセスリストを消費し同時接続できる
+クライアントの数が減る．
+
+2つめは，プログラムにバグがあった場合，子プロセスがさらに子プロセスを生み出すような動作をする可能性があることだ．
+\ref{sec:program}節，リスト\ref{server}の370行目で子プロセスと親プロセスの処理を分けている．
+ここでバグが発生し，子プロセスが親プロセスの処理を行った時，子プロセスがさらに子プロセスを生成することがある．
+
+これらを解決するにはプロセスを生成しない方法を採用するべきである．
+たとえば，複数のファイルディスクリプタを管理するselect関数の使用が考えられるが，今回は時間が足りなかったため
+実装はしなかった．
+
+\section{作成したプログラム} \label{sec:program}
+
+作成したプログラムを以下に添付する．
+
+\begin{lstlisting}[caption=クライアント側プログラム,label=client,numbers=left]
+    #include<stdio.h>
+    #include<netdb.h>
+    #include<arpa/inet.h>
+    #include<strings.h>
+    #include<string.h>
+    #include<sys/socket.h>
+    #include<errno.h>
+
+    #define MSG_SIZE 1024
+    #define PORT 10650
+
+    int main(int argc, char *argv[]) {
+        if (argc < 2) return 0;
+        int fd, iCount, recv_size;
+        char send_buf[MSG_SIZE];
+        char recv_buf[MSG_SIZE];
+        struct hostent *h;
+        struct sockaddr_in sai;
+        struct sockaddr *sa;
+
+        h = gethostbyname(argv[1]);
+        if (!h) {
+            printf("gethostname: failed\n%s\n",strerror(errno));
+            return 1;
+        }
+
+        fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (fd == -1) {
+            printf("socket: failed\n%s\n",strerror(errno));
+            return 1;
+        }
+
+        sai.sin_family = h->h_addrtype;
+        sai.sin_port = htons(PORT);
+        bzero((char *)&sai.sin_addr, sizeof(sai.sin_addr));
+        memcpy((char *)&sai.sin_addr, (char *)h->h_addr, h->h_length);
+            
+        sa = (struct sockaddr*)&sai;
+        
+
+        if ( (connect(fd, sa, sizeof(*sa))) == -1) {
+            printf("connect: failed\n%s\n",strerror(errno));
+            close(fd);
+            return 1;
+        }
+
+
+        for (;;) {
+            char buf[MSG_SIZE];
+            printf("%s>",argv[1]);
+            fgets(buf, sizeof(buf), stdin);
+            sscanf(buf, "%[^t\n]",send_buf);
+            memset(buf, 0, sizeof(buf));
+            
+            if (send(fd,(void*)send_buf, strlen(send_buf),0) == -1) {
+                printf("send: failed\n%s\n",strerror(errno));
+                close(fd);
+                return 1;
+            }
+            if (send_buf[0]=='%' && send_buf[1]=='Q') break;
+
+            for (;;) {
+                memset(recv_buf, 0, sizeof(recv_buf));
+                recv_size = recv(fd,(void*)recv_buf, sizeof(recv_buf), 0);
+                if (recv_size == -1) {
+                    printf("recv: failed\n%s\n",strerror(errno));
+                    close(fd);
+                    return 1;
+                }
+                printf("%s", recv_buf);
+                if (strcmp(&recv_buf[recv_size-4], "\r\n\r\n") == 0) {
+                    break;
+                }
+            }
+        }    
+        close(fd);
+        return 0;
+    }
+
+\end{lstlisting}
+
+\begin{lstlisting}[caption=サーバ側プログラム,label=server,numbers=left]
+    #include<stdio.h>
+    #include<stdlib.h>
+    #include<string.h>
+    #include<netdb.h>
+    #include<arpa/inet.h>
+    #include<strings.h>
+    #include<sys/socket.h>
+    #include<errno.h>
+    #include<unistd.h>
+    #include<time.h>
+
+    #define MSG_SIZE 1024
+    #define PORT 10650
+    #define CLOCK_PER_SEC (4*1000*1000)
+    int parse_input (FILE	*fp);
+    int new_s;
+    char msgbuf[MSG_SIZE];
+    /*
+    void sendMsg(char* msg) {
+        int msglen = strlen(msg);
+        int msgbuflen = strlen(msgbuf);
+        int isLast = !strcmp(msg, "\r\n\r\n");
+        if (isLast) {
+        if (send(new_s, msgbuf, strlen(msgbuf), 0) == -1) {
+            printf("send: failed\n%s\n",strerror(errno));
+            close(new_s);
+            exit(1);
+        }
+        if (send(new_s, msg, strlen(msg), 0) == -1) {
+            printf("send: failed\n%s\n",strerror(errno));
+            close(new_s);
+            exit(1);
+        }
+        msgbuf[0] = '\0';
+        return;
+        } else if (MSG_SIZE < msglen + msgbuflen) {
+        if (send(new_s, msgbuf, strlen(msgbuf), 0) == -1) {
+            printf("send: failed\n%s\n",strerror(errno));
+            close(new_s);
+            exit(1);
+        }
+        msgbuf[0] = '\0';
+        strcat(msgbuf, msg);
+        return;
+        } else {
+        strcat(msgbuf, msg);
+        return;
+        }
+        
+    } 
+    */
+
+    void sendMsg(char* msg) {
+        if (send(new_s, msg, strlen(msg), 0) == -1) {
+        printf("send: failed\n%s\n",strerror(errno));
+        close(new_s);
+        exit(1);
+        }
+    }
+
+    /* 個人データ用構造体 ******************************************** */
+    struct date {
+    int y;
+    int m;
+    int d;
+    };
+
+    struct profile {
+    int         id;
+    char        name[70];
+    struct date birthday;
+    char        home[70];
+    char       *comment;
+    };
+
+    /* グローバル変数 ************************************************ */
+    struct profile profile_data[10000];
+    int    nprofiles = 0;
+
+    /* ************************************************************** *
+    * 文字列s中の文字fromを文字toで置き換える関数
+    * *************************************************************** */
+    int
+    subst (char *s, char from, char to) {
+        int n, c=0;
+
+        for (n = 0; s[n] != '\0'; n++) {
+            if (s[n] == from) {
+                s[n] = to;
+                c++;
+            }
+        }
+        return c;
+    }
+
+    /* ************************************************************** *
+    * 文字列strを区切り文字separatorで最大nitems個に分割して、分割した文字列の
+    * それぞれの先頭アドレスを配列retに代入する関数
+    * *************************************************************** */
+    int
+    split (char *str, char *ret[], char separator, int nitems) {
+    int count = 0, n;
+
+    ret[count++] = str;
+
+    for (n = 0; str[n] != '\0' && count < nitems; n++) {
+        if (str[n] == separator) {
+        str[n] = '\0';
+        ret[count++] = str + n + 1;
+        }
+    }
+    return count;
+    }
+
+    /* ************************************************************* *
+    * 入力文字列lineを解析してデータを登録する関数
+    * ************************************************************** */
+    struct profile*
+    add_profile (struct profile *p,
+            char           *line) {
+    char *data[5], *birth[3];
+
+    split(line, data, ',', 5);
+
+    p->id = atoi(data[0]);
+    strcpy(p->name, data[1]);
+    strcpy(p->home, data[3]);
+    p->comment = (char *) malloc(sizeof(char) * (strlen(data[4])+1));
+    strcpy(p->comment, data[4]);
+
+    
+    split(data[2], birth, '-', 3);
+    p->birthday.y = atoi(birth[0]);
+    p->birthday.m = atoi(birth[1]);
+    p->birthday.d = atoi(birth[2]);
+
+    return p;
+    }
+
+    /* チェックコマンド(%C) ***************************************** */
+    void
+    command_check (void) {
+        char tmpmsg[MSG_SIZE];
+        sprintf (tmpmsg,"%d profile(s)\n", nprofiles);
+        sendMsg(tmpmsg);
+    }
+
+    /* ********************************************************* *
+    * 登録データを１つ表示する関数
+    * ********************************************************** */
+    void
+    print_profile (struct profile	*p) {
+        char tmpmsg[MSG_SIZE];
+        sprintf(tmpmsg, "Id    : %d\n", p->id);
+        sendMsg(tmpmsg);
+        sprintf(tmpmsg, "Name  : %s\n", p->name);
+        sendMsg(tmpmsg);
+        sprintf(tmpmsg, "Birth : %04d-%02d-%02d\n",p->birthday.y,p->birthday.m,p->birthday.d);
+        sendMsg(tmpmsg);
+        sprintf(tmpmsg, "Addr  : %s\n", p->home);
+        sendMsg(tmpmsg);
+        sprintf(tmpmsg, "Com.  : %s\n", p->comment);
+        sendMsg(tmpmsg);
+    }
+    /* ********************************************************** *
+    * データをCSV形式で出力する関数
+    * *********************************************************** */
+    void
+    print_profile_csv (FILE *fp, struct profile *p) {
+    fprintf(fp, "%d,", p->id);
+    fprintf(fp, "%s,", p->name);
+    fprintf(fp, "%04d-%02d-%02d,",p->birthday.y,p->birthday.m,p->birthday.d);
+    fprintf(fp, "%s,", p->home);
+    fprintf(fp, "%s\n", p->comment);
+    }
+
+    /* プリントコマンド(%P) ************************************** */
+    void
+    command_print (struct profile	*p,
+            int		num) {
+    int	start = 0, end = nprofiles;
+    int	n;
+    
+    if (num > 0 && num < nprofiles) {
+        end = num;
+    } else if (num < 0 && num + end > 0) {
+        start = num + end;
+    }
+    for (n = start; n < end; n++) {
+        print_profile(&p[n]);
+    }
+    if(nprofiles==0) {
+        sendMsg("No Profile");
+    }
+    }
+
+    /* 読み込みコマンド(%R) ************************************* */
+    void
+    command_read (struct profile	*p,
+            char		*filename) {
+        FILE *fp = fopen(filename, "r");
+        char tmpmsg[MSG_SIZE];
+        if (fp == NULL){
+            sprintf(tmpmsg, "%%R: file open error %s.\n", filename);
+            sendMsg(tmpmsg);
+        } else {
+            while (parse_input(fp));
+            sprintf(tmpmsg,"file: %s read\n", filename);
+            sendMsg(tmpmsg);
+            fclose(fp);
+        }
+    }
+
+    /* 書き出しコマンド(%W) ************************************** */
+    void
+    command_write (struct profile	*p,
+            char		*filename) {
+        char tmpmsg[MSG_SIZE];
+        int  n;
+        FILE *fp = fopen(filename, "w");
+        char msg[MSG_SIZE];
+
+        if (fp == NULL){
+            sprintf(tmpmsg, "%%W: file write error %s.\n", filename);
+            sendMsg(tmpmsg);
+        } else {
+            for (n = 0; n < nprofiles; n++) {
+                print_profile_csv(fp, &p[n]);
+            }
+            sprintf(tmpmsg,"file: %s written\n", filename);
+            sendMsg(tmpmsg);
+            fclose(fp);
+        }
+    }
+
+    /* ********************************************************** *
+    * IDの値を文字列に変換する関数
+    * ********************************************************** */
+    void
+    make_id_string (int  id,
+            char *str) {
+    sprintf (str, "%d", id);
+    }
+
+    /* ******************************************************** *
+    * Date構造体の値を-区切りの文字列に変換する関数
+    * ********************************************************* */
+    void
+    make_birth_string (struct date *birth,
+            char        *str) {
+    sprintf (str, "%04d-%02d-%02d", birth->y, birth->m, birth->d);
+    }
+
+    /* 検索コマンド(%F) **************************************** */
+    void
+    command_find (struct profile	*p,
+            char		*keyword) {
+    char            id[8], birth[11];
+    int             n,notFind=1;
+
+    for (n = 0; n < nprofiles; n++) {
+        make_id_string (p[n].id, id);
+        make_birth_string (&p[n].birthday, birth);
+        if (strcmp (id, keyword) == 0        ||
+        strcmp (birth, keyword) == 0     ||
+        strcmp (p[n].name, keyword) == 0 ||
+        strcmp (p[n].home, keyword) == 0) {
+        print_profile (&p[n]);
+        printf ("file id:%s sended\n",id);
+        notFind=0;
+        }
+    }
+    if (notFind) {
+        sendMsg("Did not match any profile...");
+    }
+    }
+
+    /* ************************************************************ *
+    * コマンド分岐関数
+    * ************************************************************* */
+    void
+    exec_command (char	command,
+            char	*parameter) {
+        char tmpmsg[MSG_SIZE];
+        switch (command) {
+        case 'C':
+            command_check();
+            break;
+        case 'P':
+            command_print(profile_data, atoi(parameter));
+            break;
+        case 'R':
+            command_read(profile_data, parameter);
+            break;
+        case 'W':
+            command_write(profile_data, parameter);    
+            break;
+        case 'F':
+            command_find(profile_data, parameter);    
+            break;
+        default:
+            sprintf(tmpmsg,"Invalid command '%c' was found.\n", command);
+            sendMsg(tmpmsg);
+            break;
+    }
+    }	      
+
+    /* ********************************************************* *
+    * 入力文字列の解析
+    * ********************************************************** */
+    int
+    parse_input (FILE	*fp) {
+    char line[1024];
+
+    if (fgets(line, 1024, fp) == NULL) return 0;
+
+    subst(line, '\n', '\0');
+    if (line[0] == '%') {
+        exec_command(line[1], &line[3]);
+    } else {
+        add_profile(&profile_data[nprofiles], line);
+        nprofiles++;
+    }
+    return 1;
+    }
+
+    /* ********************************************************* *
+    * メイン関数
+    * ********************************************************** */
+    int
+    main (void) {
+        int fd, recv_size;
+        struct sockaddr_in sai;
+        struct sockaddr *sa;
+        char recv_buf[MSG_SIZE];
+
+        fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (fd == -1) {
+            printf("socket: failed\n%s\n",strerror(errno));
+            return -1;
+        }
+
+        memset((char *)&sai, 0, sizeof(sai));
+        sai.sin_family = AF_INET;
+        sai.sin_addr.s_addr = htonl(INADDR_ANY);
+        sai.sin_port = htons(PORT);
+        sa = (struct sockaddr*)&sai;
+        if (bind(fd, sa, sizeof(*sa)) == -1) {
+            printf("bind: failed\n%s\n",strerror(errno));
+            close(fd);
+            return -1;
+        }
+
+        if (listen(fd, 5) == -1) {
+            printf("listen: failed\n%s\n",strerror(errno));
+            close(fd);
+            return -1;
+        }
+
+        for (;;) {
+            new_s = accept(fd, NULL, NULL);
+            if (new_s == -1) {
+                printf("accept: failed\n%s\n",strerror(errno));
+                close(fd);
+                return -1;
+            }
+            pid_t child_pid = fork();
+            if (child_pid == -1) {
+            break;
+            } else if (child_pid == 0) {
+            printf("[INFO] CONNECTED!!!\n");
+            for (;;) {
+                memset(recv_buf, 0, sizeof(recv_buf));
+                recv_size = recv(new_s, recv_buf, sizeof(recv_buf), 0);
+                if (recv_size == -1) {
+                    printf("recv: failed\n%s\n",strerror(errno));
+                    close(fd);
+                    close(new_s);
+                    exit(1);
+                }
+
+                if (recv_buf[0]=='%' && recv_buf[1]=='Q') break;
+                
+                long st = clock();
+
+                int count = subst(recv_buf, '\n', '\0');
+                if (recv_buf[0] == '%') {
+                    exec_command(recv_buf[1], &recv_buf[3]);
+                } else {
+                    sendMsg("Please add \"%\" at the begining");
+                }
+                
+                sendMsg("\r\n\r\n");
+                printf("time: %fms\n", (double)(clock()-st)/CLOCK_PER_SEC);
+            }
+            nprofiles = 0;
+            close(new_s);
+            printf("[INFO] DISCONNECTED!!!\n");
+            exit(0);
+            }  
+        }
+        close(fd);
+
+        return 0;
+    }
+
+\end{lstlisting}
+
+\end{document}

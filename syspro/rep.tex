@@ -1,0 +1,619 @@
+\documentclass[11pt]{jarticle}
+
+\usepackage[dvipdfmx]{graphicx}
+\usepackage{listings}
+
+\lstset{
+    basicstyle={\ttfamily\small}, %書体の指定
+    %frame=tRBl, %フレームの指定
+    %framesep=10pt, %フレームと中身（コード）の間隔
+    breaklines=true, %行が長くなった場合の改行
+    linewidth=16cm, %フレームの横幅
+    lineskip=-0.5ex, %行間の調整
+    tabsize=2 %Tabを何文字幅にするかの指定
+}
+\renewcommand{\lstlistingname}{リスト}
+\setlength{\oddsidemargin}{-6.35mm}
+\setlength{\textwidth}{160.0mm}
+
+\begin{document}
+
+\title{システムプログラミング\\Report1}
+\author{09430565\\大橋虎ノ介}
+\date{提出日\number\year 年\number\month 月\number\day 日\\
+締切日 2020年 11月 16日}
+
+\maketitle
+\begin{center}
+教科書\\
+ パターソン\&ヘネシー「コンピュータの構成と設計」第5版(上)(下)
+\end{center}
+\newpage
+
+\section{概要}
+
+本実験では，アセンブラ言語でプログラミングを行い，C言語におけるヒープ，
+スタックとコンピュータアーキテクチャとの関係， main関数以前の動作などについて，実例を通して理解を深める．
+本報告書では，設定された以下5つの課題を解くプログラムをMIPSアセンブリ言語で記述し，
+SPIMを用いて動作確認した結果とそれに対する考察を述べる．
+
+\begin{itemize}
+  \item 課題1-1 教科書A.8節 「入力と出力」に示されている方法と， A.9節 最後「システムコール」に示されている方法のそれぞれで "Hello World" を表示せよ．両者の方式を比較し考察せよ．
+  \item 課題1-2 アセンブリ言語中で使用する .data， .text および .align とは何か解説せよ． リスト\ref{printdata.s}の 9行目の .data がない場合，どうなるかについて考察せよ．
+  \item 課題1-3 教科書A.6節 「手続き呼出し規約」に従って，再帰関数 fact を実装せよ． (以降の課題においては，この規約に全て従うこと)
+  \item 課題1-4 素数を最初から100番目まで求めて表示するMIPSのアセンブリ言語プログラムを作成してテストせよ．
+  \item 課題1-5 素数を最初から100番目まで求めて表示するMIPSのアセンブリ言語プログラムを作成してテストせよ． ただし，配列に実行結果を保存するように main 部分を改造し， ユーザの入力によって任意の番目の配列要素を表示可能にせよ．
+\end{itemize}
+
+\section{プログラムの設計方針}
+
+課題1-1では，syscall命令で入出力装置を利用することが安全であること，
+課題1-2では，.data，.textそして.alignの役割,
+課題1-3では，手続き呼び出し規約似ついて学んだ．以降のプログラムでは，
+syscall命令で文字の表示や入力，そしてデータ領域やテキスト領域を意識し，手続き呼び出し規約に準拠したプログラム記述を心がける．
+
+\section{プログラムリストおよびその説明}
+
+\subsection{課題1-1}
+
+\textbf{教科書A.8節 「入力と出力」に示されている方法と， A.9節 最後「システムコール」に示されている方法のそれぞれで "Hello World" を表示せよ．両者の方式を比較し考察せよ．}\\
+
+リスト\ref{syscall命令を使わない方法}はsyscall命令を使わず，入出力装置に関係するアドレスを直接参照し，書き換えを行う．
+ここでは0xffff008番地の中身が奇数か確認を行っている．入出力装置が書き込みできる状態なら0xffff008番地の内容は奇数になるので
+0xffff000c番地に出力したい文字を書き込む．
+
+一方，リスト\ref{syscall命令を使う方法}はsyscall命令を使い，入出力装置に関係するアドレスにアクセスするときは，
+システムコールに代わりにやってもらう．
+syscall命令でシステムコールを実行するには，$\$v0$レジスタに行いたいことに対応した数値を入力する．
+今回の場合，文字列を出力するので4を入れる．
+
+\begin{lstlisting}[caption=syscall命令を使わない方法,label=syscall命令を使わない方法,numbers=left]
+        .text
+        .align 2
+
+main:
+        add     $s0, $ra, $zero
+		
+        li      $a0, 'H'                
+        jal     putc
+        li      $a0, 'e'                
+        jal     putc
+        li      $a0, 'l'                
+        jal     putc
+        li      $a0, 'l'                
+        jal     putc
+        li      $a0, 'o'                
+        jal     putc   
+        li      $a0, ' '                
+        jal     putc   
+        li      $a0, 'W'                
+        jal     putc   
+        li      $a0, 'o'                
+        jal     putc   
+        li      $a0, 'r'                
+        jal     putc   
+        li      $a0, 'l'                
+        jal     putc   
+        li      $a0, 'd'                
+        jal     putc                    
+        
+        jr      $s0
+putc:
+        lw      $t0, 0xffff0008         # $t0 = *(0xffff0008)
+        li      $t1, 1                  # $t1 = 1
+        and     $t0, $t0, $t1           # $t0 &= $t1
+        beqz    $t0, putc               # if ($t0 == 0) goto putc
+        sw      $a0, 0xffff000c         # *(0xffff000c) = $a0
+        jr      $ra
+\end{lstlisting}
+
+\begin{lstlisting}[caption=syscall命令を使う方法,label=syscall命令を使う方法,numbers=left]
+  .data
+  .align 2
+msg:
+  .asciiz "Hello World"
+
+
+  .text
+  .align 2
+main:
+  add     $a2, $ra, $zero
+  jal     print
+  jr      $a2
+
+  
+  .text
+  .align 2
+print:
+  li      $v0, 4
+  la      $a0, msg
+  syscall
+  j       $ra
+\end{lstlisting}
+
+\subsection{課題1-2}
+
+\textbf{アセンブリ言語中で使用する .data， .text および .align とは何か解説せよ． リスト\ref{printdata.s}の 9行目の .data がない場合，どうなるかについて考察せよ．}\\
+
+このプログラムの\_print\_data関数はラベルghostにあるデータを出力する関数である．
+main関数から\_print\_data関数を呼び出している．
+
+\begin{lstlisting}[caption=printdata.s,label=printdata.s]
+  1:         .text
+  2:         .align 2
+  3: 
+  4: _print_data:
+  5:         la      $a0, ghost
+  6:         lw      $a0, 0($a0)
+  7:         li      $v0, 1
+  8: 
+  9:         .data
+ 10:         .align 2
+ 11: ghost:
+ 12:         .word 12
+ 13: 
+ 14:         .text
+ 15:         syscall
+ 16:         j       $ra
+ 17: 
+ 18: main:
+ 19:         subu    $sp, $sp, 24
+ 20:         sw      $ra, 16($sp)
+ 21:         jal     _print_data
+ 22:         lw      $ra, 16($sp)
+ 23:         addu    $sp, $sp, 24
+ 24:         j       $ra
+\end{lstlisting}
+
+\subsection{課題1-3}
+
+\textbf{教科書A.6節 「手続き呼出し規約」に従って，再帰関数 fact を実装せよ．}\\
+
+手続き呼び出し規約とは，レジスタの使い方を定めたソフトウェアが準拠
+すべき約束事である．
+
+fact関数は手続き呼び出し規約に準拠するために，
+呼び出し直後にスタックポインタ・フレームポインタそして
+戻りアドレスを格納した\$raレジスタの値をスタック領域に退避させる．
+そして，最後にそれらの値をレジスタに戻し関数を終了する．
+
+関数はまずレジスタの内容を退避しておくためにスタック領域を確保する．
+そのためにまず，スタックポインタの値を$-32$する．これで32バイト確保できる．
+
+関数の初めに\$raの値を\$sp[20]，フレームポインタの値を\$fp[16]に格納する．
+関数を終了するときは，\$raとフレームポインタの値を戻した後，スタックポインタの値を$+32$する．
+
+\begin{lstlisting}[caption=fact関数,label=fact関数,numbers=left]
+  .data
+  .align 2
+msg:
+  .asciiz "The factrial of 10 is "
+
+  .align 2
+enter:
+  .asciiz "\n"
+  
+  .text
+  .align 2
+main:
+  subu    $sp, $sp, 32    #スタック・フレームは32バイト
+  sw      $ra, 20($sp)    
+  sw      $fp, 16($sp)
+  addiu   $fp, $sp, 28
+  
+  li      $v0, 4     
+  la      $a0, msg
+  syscall                # print "The factrical of 10 is "
+
+  li      $a0, 10
+  jal     fact
+  move    $a0, $v0       # $a0 = fact(10)
+
+  li      $v0, 1         
+  syscall                # print fact(10)
+  
+  li      $v0, 4        
+  la      $a0, enter     # print '\n'
+  syscall
+
+  
+  lw      $ra, 20($sp)
+  lw      $fp, 16($sp)
+  addiu   $sp, $sp, 32
+  
+  jr      $ra            # return
+
+  .text
+  .align 2
+fact:
+  subu    $sp, $sp, 32   #
+  sw      $ra, 20($sp)   #
+  sw      $fp, 16($sp)   # レジスタを退避
+  addiu   $fp, $sp, 28
+  sw      $a0, 0($fp)    # 引数を退避
+
+  lw      $v0, 0($fp)    # $v0 = 引数
+  bgtz    $v0, recall    # if 引数 != 0 then goto recall
+  li      $v0, 1         # $v0 = 1
+  jr      return
+  
+recall:
+  lw      $v1, 0($fp)    # $v1 = 引数
+  subu    $v0, $v1, 1    # $v0 = 引数-1
+  move    $a0, $v0       # $a0 = 引数-1
+  jal     fact           # fact(引数-1)
+
+  lw      $v1, 0($fp)    # $v1 = 引数
+  mul     $v0, $v0, $v1  # 戻り値 = fact(引数-1) * 引数
+  
+return: 
+  lw      $ra, 20($sp)   #
+  lw      $fp, 16($sp)   #
+  addiu   $sp, $sp, 32   #レジスタを戻す
+  jr      $ra
+\end{lstlisting}
+
+\subsection{課題1-4}
+
+\textbf{素数を最初から100番目まで求めて表示するMIPSのアセンブリ言語プログラムを作成してテストせよ． その際，素数を求めるために下記の2つのルーチンを作成すること．}\\
+
+\begin{table}[h]
+  \begin{tabular}{l|l}
+    関数名 & 概要 \\ \hline
+    test\_prime(n) & nが素数なら1，そうでなければ0を返す \\
+    main() & 整数を順々に素数判定し，100個プリント
+  \end{tabular}
+\end{table}
+
+素数を最初から100番目まで求めて表示するプログラムをリスト\ref{100個の素数を求める}
+に示す．引数が素数か判定するtest\_prime関数は，引数を2～引数$-1$まで割り算を行い
+割りきれたときに0を返し，割りきれずにforループを抜ければ1を返す．
+
+main関数では，2～順番にtest\_prime関数で素数判定を行い，素数であるならその数を
+コンソール上に表示する．それを100個の素数が揃うまで繰り返す．
+
+\begin{lstlisting}[caption=100個の素数を求める,label=100個の素数を求める,numbers=left]
+        .data
+        .align  2
+space:
+        .asciiz " "
+
+        .align  2
+enter:
+        .asciiz "\n"
+        
+        .text
+        .align  2
+test_prime: ###test_prime()###
+        subu    $sp, $sp, 32
+        sw      $ra, 20($sp)
+        sw      $fp, 16($sp)
+        
+        li      $t0, 2                      #i=2
+test_prime_for:                                #for (i=2 ;i<n;i++)
+        bge     $t0, $a0, test_prime_return1   # !i<n then return 1 ;
+        
+        rem     $t1, $a0, $t0               #$t1 = n%i
+        beqz    $t1, test_prime_return0        #if (n%i==0) return 0 ;
+        addi    $t0, $t0, 1                 #i++
+        j       test_prime_for        
+        
+test_prime_return1:
+        li      $v0, 1
+        j       test_prime_end
+test_prime_return0:
+        li      $v0, 0
+        j       test_prime_end
+        
+test_prime_end:    
+        lw      $ra, 20($sp)
+        lw      $fp, 16($sp)
+        addu    $sp, $sp, 32
+        j       $ra
+        ###test_prime()end###
+        
+        .text
+        .align  2
+print_int:
+        li      $v0, 1
+        syscall
+        j       $ra
+
+        .text
+        .align  2
+print_string:
+        li      $v0, 4
+        syscall
+        j       $ra
+        
+        .text
+        .align  2
+main:
+        addu    $sp, $sp, 32
+        sw      $ra, 20($sp)
+        sw      $fp, 16($sp)
+        
+        li      $s0, 0          #match=0
+        li      $s1, 2          #n=2
+        j       while
+        
+notPrime:
+        addi    $s1, $s1, 1     #n++
+        j       while
+        
+while:
+        add     $a0, $s1, $zero #$a0 = n
+        jal     test_prime
+
+        beqz    $v0, notPrime   #if test_prime(n)!=0 notPrime
+        add     $a0, $s1, $zero 
+        jal     print_int       #print_int(n)
+        la      $a0, space      
+        jal     print_string    #print_string(" ")
+        
+        addi    $s0, $s0, 1     #match++
+        addi    $s1, $s1, 1     #n++
+        blt     $s0, 100, while #if match < 100 then while
+        j       whileEnd    
+        
+whileEnd:
+        la      $a0, enter
+        jal     print_string
+
+        lw      $ra, 20($sp)
+        lw      $fp, 16($sp)
+        subu    $sp, $sp, 32
+        j       $ra
+
+\end{lstlisting}
+
+\subsection{課題1-5}
+
+\textbf{素数を最初から100番目まで求めて表示するMIPSのアセンブリ言語プログラムを作成してテストせよ． ただし，配列に実行結果を保存するように main 部分を改造し， ユーザの入力によって任意の番目の配列要素を表示可能にせよ．}\\
+
+素数を最初から100番目まで求め，配列に格納するプログラムをリスト
+\ref{100個の素数を配列に格納}に示す．
+素数かどうか判定するtest\_prime関数は課題1-4のものと同じものを使用した．
+
+main関数は２～順番にtest\_prime関数で素数判定を行い，素数であれば配列に格納する．
+
+配列は.space　n でnバイト確保できる．ここではint型の長さ100の配列を確保するために，
+4バイト(32bit) $\times$ 100 = 400バイト確保した．
+
+arrayラベルを指定することで，配列の先頭アドレスを取得できる．
+配列の任意の場所へのアクセスするには，arrayの先頭アドレス+添字$\times$4のアドレスにアクセスする．
+ここで添字に4をかけるのはarrayがint型(4バイト)だからである．
+
+main関数内のラベルmainforでは，0～99の入力nを受付けarray配列n番目の内容を
+表示する．
+
+\begin{lstlisting}[caption=100個の素数を配列に格納,label=100個の素数を配列に格納,numbers=left]
+        .data
+        .align  2
+space:
+        .asciiz " "
+
+        .align  2
+smaller:
+        .asciiz "> "
+        
+        .align  2
+enter:
+        .asciiz "\n"
+
+        .align  2
+array:
+        .space  400
+        
+        .text
+        .align  2
+test_prime: ###test_prime()###
+        subu    $sp, $sp, 32
+        sw      $ra, 20($sp)
+        sw      $fp, 16($sp)
+        
+        li      $t0, 2                      #i=2
+test_prime_for:                                #for (i=2 ;i<n;i++)
+        bge     $t0, $a0, test_prime_return1   # !i<n then return 1 ;
+        
+        rem     $t1, $a0, $t0               #$t1 = n%i
+        beqz    $t1, test_prime_return0        #if (n%i==0) return 0 ;
+        addi    $t0, $t0, 1                 #i++
+        j       test_prime_for        
+        
+test_prime_return1:
+        li      $v0, 1
+        j       test_prime_end
+test_prime_return0:
+        li      $v0, 0
+        j       test_prime_end
+        
+test_prime_end:    
+        lw      $ra, 20($sp)
+        lw      $fp, 16($sp)
+        addu    $sp, $sp, 32
+        j       $ra
+        ###test_prime()end###
+
+        .text
+        .align  2
+read_int:
+        li      $v0, 5
+        syscall
+        j       $ra
+        
+        .text
+        .align  2
+print_int:
+        li      $v0, 1
+        syscall
+        j       $ra
+
+        .text
+        .align  2
+print_string:
+        li      $v0, 4
+        syscall
+        j       $ra
+        
+        .text
+        .align  2
+main:
+        addu    $sp, $sp, 32
+        sw      $ra, 20($sp)
+        sw      $fp, 16($sp)
+        
+        li      $s0, 0          #match=0
+        li      $s1, 2          #n=2
+        j       while
+        
+notPrime:
+        addi    $s1, $s1, 1     #n++
+        j       while
+        
+while:
+        add     $a0, $s1, $zero #$a0 = n
+        jal     test_prime
+
+        beqz    $v0, notPrime   #if test_prime(n)!=1 then goto notPrime
+        la      $s2, array      #$s2=array
+        mulo    $s3, $s0, 4     #$s3=match*4
+        add     $s2, $s2, $s3   #$s2=array+match*4
+        sw      $s1, 0($s2)     #$s1=array[match]
+        
+        addi    $s0, $s0, 1     #match++
+        addi    $s1, $s1, 1     #n++
+        blt     $s0, 100, while #match < 100
+        j       whileEnd    
+        
+whileEnd:
+        la      $a0, enter      
+        jal     print_string    #print("\n") 
+        j       mainfor
+
+mainfor:        
+        la      $a0, smaller
+        jal     print_string    #print(">")
+
+        jal     read_int        #$v0 = read_int
+        mulo    $t0, $v0, 4     #$t0 = $v0*4
+
+        la      $a0, array
+        add     $a0, $a0, $t0   #$a0=array+$t0
+        lw      $a0, 0($a0)     #$a0=array[$t0]
+        jal     print_int       #print(array[$t0])
+
+        la      $a0, enter
+        jal     print_string    #print("\n")
+
+        j       mainfor
+
+        lw      $ra, 20($sp)
+        lw      $fp, 16($sp)
+        subu    $sp, $sp, 32
+\end{lstlisting}
+
+\section{プログラムの使用方法}
+
+以上のプログラムはMIPSシミュレータであるxspimを利用して実行できる．
+xspimコマンドを実行する\\
+$>$ xspim -mapped\_io\&\\
+
+loadメニューからファイル名で指定し，runメニューを選んでokを押すことで実行できる．
+
+\subsection{リスト\ref{syscall命令を使わない方法}とリスト\ref{syscall命令を使う方法}}
+
+どちらも入力を必要としない．"Hello World"と表示される．
+
+\subsection{リスト\ref{printdata.s}}
+
+入力は必要ない．"12"と表示される．
+
+\subsection{リスト\ref{fact関数}}
+
+入力は必要ない．10の階乗が計算され出力される．
+答えは3628800である．
+
+\subsection{リスト\ref{100個の素数を求める}}
+
+入力は必要ない．\\
+2 3 5 \dots 541\\
+のように100個の素数が表示される．
+
+\subsection{リスト\ref{100個の素数を配列に格納}}
+
+0から99までの数字を入力すると，入力した数字$+$1 番目の素数が表示される．\\
+$>$ 0\\
+2\\
+$>$ 5\\
+13\\
+$>$ 80\\
+419\\
+
+\section{プログラムの作成過程に関する考察}
+
+課題1-4，課題1-5では，課題1-1から1-3までで学んだ，
+安全な入出力装置の使い方と手続き呼び出し規約を守ったプログラム記述を心がけた．
+
+\section{設問に対する回答}
+
+\subsection{課題1-1}
+
+\textbf{教科書A.8節 「入力と出力」に示されている方法と， A.9節 最後「システムコール」に示されている方法のそれぞれで "Hello World" を表示せよ．両者の方式を比較し考察せよ．}\\
+
+syscall命令を使うメリットは，プログラマがアドレスを指定する必要がないことである．
+syscall命令を使わない場合，カーネルによって変わる可能性のあるアドレスを指定する必要があるので不便である．
+また，安全性の面でもsyscall命令を使うことが推奨される．なぜなら，
+リスト\ref{syscall命令を使わない方法}の書き方では，入出力装置の状態を考慮せず，
+自由に書き換えができるため，入出力装置を破壊してしまう可能性がある．
+
+\subsection{課題1-2}
+
+\textbf{アセンブリ言語中で使用する .data， .text および .align とは何か解説せよ． リスト\ref{printdata.s}の 9行目の .data がない場合，どうなるかについて考察せよ．}\\
+
+.dataと.textはメモリ中のどこにデータやテキストを配置するのかを制御するアセンブラ指令である．
+SPIMではテキストセグメントを0x00400000~，データセグメントを0x10000000~のようにセグメント分割を行っている．
+テキストは動作中に書き換えを行わないので，ROM上に配置できる．データは書き換えが生じる可能性があるので，RAM上に配置する．
+.align nは2のn乗の境界上になるまで隙間を開ける指令である.
+mipsは32ビットアーキテクチャであるので、効率よく
+読み込むためには4バイト境界のアドレスにデータが
+整列している必要がある.
+
+リスト\ref{printdata.s}の9行目の.dataがない場合，ghostはテキストセグメント上に配置されるので，
+そのビット列に対応した命令が実行される．このコードではコンソール上に1212が表示された．
+
+\subsection{課題1-3}
+
+\textbf{教科書A.6節 「手続き呼出し規約」に従って，再帰関数 fact を実装せよ． (以降の課題においては，この規約に全て従うこと)}\\
+
+手続き呼び出し規約に従い，再帰関数factを実装した．関数のはじめに書き換える可能性のあるレジスタをスタック領域に退避し，
+関数の最後にそれらを戻すことで規約に従う動作を実現した．
+
+\subsection{課題1-4}
+
+\textbf{素数を最初から100番目まで求めて表示するMIPSのアセンブリ言語プログラムを作成してテストせよ．}\\
+
+引数が素数か判定するtest\_prime関数を作成した．そして，main関数は引数を1つずつ大きくしながらtest\_prime関数を
+呼び出し素数が100出力されたところで終了させる．
+
+結果，2から541までの100個の素数が出力された．
+
+\subsection{課題1-5}
+
+\textbf{素数を最初から100番目まで求めて表示するMIPSのアセンブリ言語プログラムを作成してテストせよ． ただし，配列に実行結果を保存するように main 部分を改造し， ユーザの入力によって任意の番目の配列要素を表示可能にせよ．}\\
+
+素数を判定するtest\_prime関数は課題1-4のものと同じものを使い，main関数では素数を出力していたのを配列に格納するようにした．
+
+配列は.space n でnバイト領域確保できる．今回はint型(4バイト)長さ100の配列であるので400バイト確保した．
+
+結果，ユーザーが入力した数字(0～99)番目の素数を表示できることを確認した．
+
+\section{まとめ}
+本実験では，アセンブラ言語でプログラミングを行い，C言語におけるヒープ，
+スタックとコンピュータアーキテクチャとの関係， main関数以前の動作などについて
+学ぶためにMIPSアセンブリ言語でプログラムを記述した．
+
+この実験を通して，安全に入出力装置を使う方法とC言語で使っている関数や配列が
+コンピュータ内部でどのように実現しているのか理解した．
+
+\end{document}
