@@ -86,7 +86,23 @@ spim-gccでは，関数を呼び出す際に第1引数～第4引数を保存す�
 
 \subsection{課題2-3 auto変数とstatic変数の違い，ポインタと配列の違いについて}
 
+リスト\ref{report2-1}をコンパイルした結果をリスト\ref{report2-1c}に示す．
 
+リスト\ref{report2-1}の1行目：primes\_statはstatic変数であり，16行目：primes\_autoはauto変数である．
+リスト\ref{report2-1c}においてprimes\_statと対応する部分を探すと91行目：.comm \_primes\_stat ,40という行が見つかる．
+これはデータセグメントに40バイト確保している．
+一方，primes\_autoをリスト\ref{report2-1c}から探すと66行目：.ascii "primes\_auto[0]$\backslash$000"という文字列が見つかる．
+\$LC4は82行目に使われており，84行目の\_print\_varの第2引数がprime\_auto[0]の値であると分かる．
+83行目の\$a1つまり16(\$fp)はスタック領域であるから，auto変数はスタック領域に保存されていることが分かる．
+
+データセグメントにあるstatic変数はプログラムの開始から終了まで値を保持し続けるが，スタック領域にあるauto変数は
+関数が終了するとその領域を解放する．
+
+リスト\ref{report2-1}の3行目：string\_ptrはポインタであり，4行目：string\_aryは配列である．
+リスト\ref{report2-1c}においてstring\_ptrと対応する部分は23行目にある．
+ここをみると，string\_ptrは18行目"ABCDEFG$\backslash$000"というデータを持った\$LC0へのアドレスを持っていることが分かる．
+一方，リスト\ref{report2-1c}において，string\_aryに対応する部分は26行目にある．
+ここでは配列が"ABCDEFG$\backslash$000"というでーたを持っていることが分かる．
 
 \subsection{課題2-4 MIPSのCコンパイラにおいて可変引数関数の実現方法について}
 
@@ -94,7 +110,7 @@ spim-gccでは，関数を呼び出す際に第1引数～第4引数を保存す�
 
 \section{プログラムリスト} \label{sec:program}
 
-\begin{lstlisting}[caption=hanoi.c,label=hanoi]
+\begin{lstlisting}[caption=hanoi.c,label=hanoi,numbers=left]
   void hanoi(int n, int start, int finish, int extra)
   {
     if (n != 0){
@@ -120,7 +136,7 @@ spim-gccでは，関数を呼び出す際に第1引数～第4引数を保存す�
 \end{lstlisting}
 
 
-\begin{lstlisting}[caption=report2-1.c,label=report2-1]
+\begin{lstlisting}[caption=report2-1.c,label=report2-1,numbers=left]
 int primes_stat[10];
 
 char * string_ptr   = "ABCDEFG";
@@ -146,7 +162,101 @@ main()
 }
 \end{lstlisting}
 
-\begin{lstlisting}[caption=syacalls.s,label=syscalls]
+\begin{lstlisting}[caption=report2-1.s,label=report2-1c,numbers=left]
+	.file	1 "step4-1.c"
+
+ # -G value = 0, Cpu = r2000, ISA = 1
+ # GNU C version 2.96-mips3264-000710 (mipsel-linux) compiled by GNU C version 2.96 20000731 (Red Hat Linux 7.2 2.96-112.7.2).
+ # [AL 1.1, MM 40] BSD Mips
+ # options passed:  -mno-abicalls -mrnames -mmips-as -mcpu=r2000 -O0
+ # -fleading-underscore -finhibit-size-directive -fverbose-asm
+ # options enabled:  -fpeephole -fkeep-static-consts -fpcc-struct-return
+ # -fsched-interblock -fsched-spec -fnew-exceptions -fcommon
+ # -finhibit-size-directive -fverbose-asm -fgnu-linker -flive-range-gdb
+ # -fargument-alias -fleading-underscore -fdelay-postincrement -fident
+ # -fmath-errno -msplit-addresses -mrnames -mdebugf -mdebugi -mcpu=r2000
+
+
+	.rdata
+	.align	0
+	.align	2
+$LC0:
+	.ascii	"ABCDEFG\000"
+	.data
+	.align	0
+	.align	2
+_string_ptr:
+	.word	$LC0
+	.align	2
+_string_ary:
+	.ascii	"ABCDEFG\000"
+	.rdata
+	.align	0
+	.align	2
+$LC1:
+	.ascii	" = \000"
+	.align	2
+$LC2:
+	.ascii	"\n\000"
+	.text
+	.align	2
+	.set	nomips16
+_print_var:
+	subu	$sp,$sp,24
+	sw	$ra,20($sp)
+	sw	$fp,16($sp)
+	move	$fp,$sp
+	sw	$a0,24($fp)
+	sw	$a1,28($fp)
+	lw	$a0,24($fp)
+	jal	_print_string
+	la	$a0,$LC1
+	jal	_print_string
+	lw	$a0,28($fp)
+	jal	_print_int
+	la	$a0,$LC2
+	jal	_print_string
+	move	$sp,$fp
+	lw	$ra,20($sp)
+	lw	$fp,16($sp)
+	addu	$sp,$sp,24
+	j	$ra
+	.rdata
+	.align	0
+	.align	2
+$LC3:
+	.ascii	"primes_stat[0]\000"
+	.align	2
+$LC4:
+	.ascii	"primes_auto[0]\000"
+	.text
+	.align	2
+	.set	nomips16
+main:
+	subu	$sp,$sp,64
+	sw	$ra,60($sp)
+	sw	$fp,56($sp)
+	move	$fp,$sp
+	li	$v0,2			# 0x2
+	sw	$v0,_primes_stat
+	li	$v0,3			# 0x3
+	sw	$v0,16($fp)
+	la	$a0,$LC3
+	lw	$a1,_primes_stat
+	jal	_print_var
+	la	$a0,$LC4
+	lw	$a1,16($fp)
+	jal	_print_var
+	move	$sp,$fp
+	lw	$ra,60($sp)
+	lw	$fp,56($sp)
+	addu	$sp,$sp,64
+	j	$ra
+
+	.comm	_primes_stat,40
+\end{lstlisting}
+
+\begin{lstlisting}[caption=syacalls.s,label=syscalls,numbers=left]
   .text
   .align  2
 _print_int:
