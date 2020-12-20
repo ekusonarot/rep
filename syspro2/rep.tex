@@ -1,0 +1,70 @@
+\documentclass[11pt]{jarticle}
+
+\usepackage[dvipdfmx]{graphicx}
+\usepackage{listings}
+
+\lstset{
+    basicstyle={\ttfamily\small}, %書体の指定
+    %frame=tRBl, %フレームの指定
+    %framesep=10pt, %フレームと中身（コード）の間隔
+    breaklines=true, %行が長くなった場合の改行
+    linewidth=16cm, %フレームの横幅
+    lineskip=-0.5ex, %行間の調整
+    tabsize=2 %Tabを何文字幅にするかの指定
+}
+\renewcommand{\lstlistingname}{リスト}
+\setlength{\oddsidemargin}{-6.35mm}
+\setlength{\textwidth}{160.0mm}
+
+\begin{document}
+
+\title{システムプログラミング2\\期末レポート}
+\author{09430565\\大橋虎ノ介}
+\date{出題日 2020年 10月 ?日\\
+提出日\number\year 年\number\month 月\number\day 日\\
+締切日 2020年 11月 16日}
+
+\maketitle
+\begin{center}
+教科書\\
+ パターソン\&ヘネシー「コンピュータの構成と設計」第5版(上)(下)
+\end{center}
+\newpage
+
+\section{概要} \label{sec:abstract}
+
+本実験では，アセンブラ言語でプログラミングを行い，C言語におけるヒープ，
+スタックとコンピュータアーキテクチャとの関係， main関数以前の動作などについて，実例を通して理解を深める．
+本報告書では，設定された以下5つの課題を解き，最終的にprintf関数のサブセットを実装した結果とそれに対する考察を述べる．
+
+\begin{itemize}
+  \item 課題2-1 教科書A.6節 「手続き呼出し規約」に従って，各種手続きをアセンブラで記述せよ．
+  \item 課題2-2 hanoi.s を例に spim-gcc の引数保存に関するスタックの利用方法について，説明せよ． そのことは，規約上許されるスタックフレームの最小値24とどう関係しているか． このスタックフレームの最小値規約を守らないとどのような問題が生じるかについて解説せよ．
+  \item 課題2-3 以下のプログラム report2-1.c をコンパイルした結果をもとに， auto変数とstatic変数の違い，ポインタと配列の違いについてレポートせよ．
+  \item 課題2-4 printf など，一部の関数は，任意の数の引数を取ることができる． これらの関数を可変引数関数と呼ぶ． MIPSのCコンパイラにおいて可変引数関数の実現方法について考察し，解説せよ．
+  \item 課題2-5 printf のサブセットを実装し， SPIM上でその動作を確認する応用プログラム(自由なデモプログラム)を作成せよ．
+\end{itemize}
+
+\section{プログラムの設計方針}
+
+\section{プログラムリストおよび，その説明}
+
+\section{プログラムの使用方法}
+
+\section{プログラム作成過程に関する考察}
+
+\section{設問に対する回答}
+
+本節では概要\ref{sec:abstract}節で設定した課題に対する解答を述べる．
+
+\subsection{課題2-1 各種手続きをアセンブラで記述せよ}
+
+\subsection{課題2-2 spim-gcc の引数保存に関するスタックの利用方法について，説明せよ}
+
+\subsection{課題2-3 auto変数とstatic変数の違い，ポインタと配列の違いについて}
+
+\subsection{課題2-4 MIPSのCコンパイラにおいて可変引数関数の実現方法について}
+
+\subsection{課題2-5 printf のサブセットを実装し， SPIM上でその動作を確認する応用プログラム(自由なデモプログラム)を作成せよ．}
+
+\end{document}
