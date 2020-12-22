@@ -64,7 +64,14 @@
 hanoi.sと作成したsyscalls.sをSPIM上にロードし実行した結果を\ref{hanoi_exec}に示す．
 
 \begin{lstlisting}[caption=実行結果,label=hanoi_exec]
-  
+Enter number of disks> 3
+Move disk 1 from peg 1 to peg 2.
+Move disk 2 from peg 1 to peg 3.
+Move disk 1 from peg 2 to peg 3.
+Move disk 3 from peg 1 to peg 2.
+Move disk 1 from peg 3 to peg 1.
+Move disk 2 from peg 3 to peg 2.
+Move disk 1 from peg 1 to peg 2.
 \end{lstlisting}
 
 \subsection{課題2-2 spim-gcc の引数保存に関するスタックの利用方法について，説明せよ}
@@ -105,6 +112,20 @@ spim-gccでは，関数を呼び出す際に第1引数～第4引数を保存す�
 ここでは配列が"ABCDEFG$\backslash$000"というでーたを持っていることが分かる．
 
 \subsection{課題2-4 MIPSのCコンパイラにおいて可変引数関数の実現方法について}
+
+C言語では，可変長の引数を扱うために， … を使った構文が用意されている．
+spim-gccでは，関数の引数が呼び出した関数のスタック領域に順番に並べられる．
+
+実装するmyprintf関数の第1引数は必須であるので，そのアドレスを元に第2引数，
+第3引数を求めることができる．
+spim-gccのスタック利用規約から，第2引数は第1引数の4バイト先にあり，
+第3引数はさらに4バイト先にあるので，引数のアドレスは以下の式により求められる．
+\\
+第n引数のアドレス=第n-1引数のアドレス+((sizeof(第n-1引数)+3) /4) *4;
+\\
+((sizeof(第n-1引数)+3) /4) *4となるのは，spim-gccでのsizeofは3以下の時4の倍数に切り上げるからである．
+
+引数の数と型については，第一引数の\%とsやdなどの識別子をみれば良い．
 
 \subsection{課題2-5 printf のサブセットを実装し， SPIM上でその動作を確認する応用プログラム(自由なデモプログラム)を作成せよ．}
 
