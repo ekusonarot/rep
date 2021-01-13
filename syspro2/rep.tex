@@ -20,9 +20,9 @@
 
 \title{システムプログラミング2\\期末レポート}
 \author{09430565\\大橋虎ノ介}
-\date{出題日 2020年 10月 ?日\\
+\date{出題日 2020年 10月 5日\\
 提出日\number\year 年\number\month 月\number\day 日\\
-締切日 2020年 11月 16日}
+締切日 2021年 1月 25日}
 
 \maketitle
 \begin{center}
@@ -35,7 +35,8 @@
 
 本実験では，アセンブラ言語でプログラミングを行い，C言語におけるヒープ，
 スタックとコンピュータアーキテクチャとの関係， main関数以前の動作などについて，実例を通して理解を深める．
-本報告書では，設定された以下5つの課題を解き，最終的にprintf関数のサブセットを実装した結果とそれに対する考察を述べる．
+本報告書では，設定された以下5つの課題を解き，最終的にprintf関数のサブセット（以降myprintfと呼ぶ）を実装した結果とそれに対する考察を述べる．
+実装する出力フォーマット指定子を表\ref{table:ident}に示す．
 
 \begin{itemize}
   \item 課題2-1 教科書A.6節 「手続き呼出し規約」に従って，各種手続きをアセンブラで記述せよ．また，記述した syscalls.s の関数をC言語から呼び出すことで， \ref{sec:program}節リスト\ref{hanoi}ハノイの塔を完成させよ．
@@ -45,13 +46,150 @@
   \item 課題2-5 printf のサブセットを実装し， SPIM上でその動作を確認する応用プログラム(自由なデモプログラム)を作成せよ．
 \end{itemize}
 
-\section{プログラムの設計方針}
+\begin{table}[h]
+  \begin{center}
+  \label{table:ident}
+  \caption{識別子一覧}
+    \begin{tabular}{l|l|l}
+      指定し & 対応する型 & 説明 \\ \hline
+      \%d & int & 整数を10進数で出力する \\
+      \%s & char * & 文字列を出力する \\
+      \%c & char & 1文字を出力する \\
+      \%p & アドレス & アドレスを受け取り16進数で出力する \\
+      \%\% & なし & \%を出力する
+    \end{tabular}
+\end{center}
+\end{table}
 
-\section{プログラムリストおよび，その説明}
+\section{プログラムの設計方針} \label{sec:policy}
+
+myprintf関数は3つの部分から構成することにした．それぞれについて作成方針を立てる．
+
+\begin{itemize}
+  \item myprintf本体(\ref{sec:myprintf}節)
+  \item 10進数を16進数に変換する関数(\ref{sec:16base}節)
+  \item 出力処理を行う関数(\ref{sec:io}節)
+\end{itemize}
+
+\subsection{myprintf本体} \label{sec:myprintf}
+
+第1引数にフォーマット文字列のアドレス，第2引数以降は出力する変数を受け取る．
+文字列を出力する方法としては，フォーマット文字列の一文字目から順番に，1文字ずつ
+出力していく．
+
+文字を出力していく中で，"\%"があれば，それに続く識別子に応じて第2引数以降の
+変数の値を出力する．
+
+\subsection{10進数から16進数へ変換する関数} \label{sec:16base}
+
+この関数はmyprintf内で呼び出される．第1引数にint型のアドレスのデータを受け取り，
+第2引数に何進数へ変換するのかを指定する．
+
+今回の実験では16進数への変換のみを想定している．
+
+\subsection{入出力処理} \label{sec:io}
+
+myprintf関数内で呼び出す入出力関数はアセンブラ言語で記述する．
+実装する関数は以下の4つである．
+
+printから始まる関数は整数を出力する関数，1文字を出力する関数そして文字列を出力する関数である．
+readから始まる関数は動作確認用のプログラムで使用するユーザの入力を受け付ける関数である．
+
+\begin{itemize}
+  \item print\_int
+  \item print\_char
+  \item print\_string
+  \item read\_string
+  \item read\_int
+\end{itemize}
+
+\section{プログラムリストおよび，その説明} \label{sec:program_exp}
+
+\ref{sec:policy}節の設計方針に従い，myprintf関数を実装した．
+myprintf関数をリスト\ref{list:myprintf}，myprintf関数内で呼び出す
+出力関数を\ref{sec:program}節のリスト\ref{syscalls}に示す．
+
+\begin{lstlisting}[label=list:myprintf,caption=myprintf関数,numbers=left]
+  void print_nbase(int addr, int base) {
+    char i2a[]={'0','1','2','3','4','5','6','7','8',
+                '9','A','B','C','D','E','F'};
+    int stack[32];
+    int idx=0;
+    int tmp_base=base;
+    print_string("0x");
+    for (;addr>=1;idx++) {
+        stack[idx]=addr%tmp_base;
+        addr/=base;
+    }
+    idx--;
+    for (;idx>=0;idx--) {
+        print_char(i2a[stack[idx]]);
+    }
+  }
+
+  void myprintf(char* fmt, ...) {
+    int i;
+    void* arg_p = ((char*)&fmt)+((sizeof(fmt)+3) /4) *4;
+    for (i=0; fmt[i]!='\0'; i++) {
+        if (fmt[i] == '%' && fmt[i+1] != '\0') {
+            i++;
+            switch (fmt[i]) {
+            case 'd':
+                print_int(*(int*)arg_p);
+                arg_p += ((sizeof(int)+3) /4) *4;
+                break;
+            case 's':
+                print_string((char*)*(char**)arg_p);
+                arg_p += ((sizeof(char*)+3) /4) *4;
+                break;
+            case 'c':
+                print_char(*(char*)arg_p);
+                arg_p += ((sizeof(char)+3) /4) *4;
+                break;
+            case 'p':
+                print_nbase(*(int*)arg_p,16);
+                arg_p += ((sizeof(char*)+3) /4) *4;
+                break;
+            case '%':
+                print_char('%');
+                arg_p += ((sizeof(char)+3) /4) *4;
+                break;
+            default:
+                break;
+            }
+        }else{
+            print_char(fmt[i]);
+        }
+    }
+  }
+\end{lstlisting}
 
 \section{プログラムの使用方法}
 
+プログラムの動作確認は，spim-gccでコンパイルしたアセンブラコードと
+syscalls.s(\ref{sec:program}節，リスト\ref{syscalls})をMIPSシミュレータであるxspim上にロードして動作確認を行う．
+
+xspimコマンドを実行する\\
+$>$ xspim -mapped\_io\&\\
+
+loadメニューからファイル名で指定し，runメニューを選んでokを押すことで実行できる．
+
 \section{プログラム作成過程に関する考察}
+
+\ref{sec:policy}節で述べた実装方針に基づいて，\ref{sec:program_exp}節ではその実装を行った．
+本節では，myprintfの作成過程において検討した内容，および，考察した内容について述べる．
+
+\subsection{識別子以外の部分の出力について}
+
+現在では，フォーマット文字列の先頭から1文字ずつ出力していく方式にしているが，
+初期段階では，"\%"が現れる直前の文字列をまとめて出力するという方法を検討していた．
+
+文字列をまとめて出力する方法を検討していた理由は，1文字ずつ出力するよりも早いと考えたからだ．
+しかし，最終的には1文字ずつ出力する方法をとった．
+その理由は，文字列として出力する場合，識別子が現れる直前の文字列を保存するバッファを確保するか，
+もしくは識別子の"\%"の部分を"$\backslash$0"としなければならない．
+
+バグが混入するのを避けるために複雑な処理をしない現在の方法を採用した．
 
 \section{設問に対する回答}
 
@@ -128,6 +266,43 @@ spim-gccのスタック利用規約から，第2引数は第1引数の4バイト
 引数の数と型については，第一引数の\%とsやdなどの識別子をみれば良い．
 
 \subsection{課題2-5 printf のサブセットを実装し， SPIM上でその動作を確認する応用プログラム(自由なデモプログラム)を作成せよ．}
+
+動作確認用にmyprintfを用いてFizzBuzzを書いた(リスト\ref{FizzBuzz})．
+FizzBuzzとは，1~任意の数までの数字を順番に表示する．
+ただし，3の倍数の時は「Fizz」，5の倍数の時は「Buzz」，3と5の倍数の時は「FizzBuzz」と表示する．
+
+リスト\ref{FizzBuzz}のプログラムはユーザから整数の入力をもらい，その数字まで
+FizzBuzzを表示する．
+
+\ref{sec:abstract}節で示した識別子をすべて使用した．
+出力結果をリスト\ref{output}に示す．
+
+\begin{lstlisting}[caption=FizzBuzz,label=FizzBuzz,numbers=left]
+  int main() {
+    int i, j;
+    char Fizz[]="Fizz", Buzz[]="Buzz";
+
+    i = read_int();
+    for (j=1; j<=i; j++) {
+        if (j%3==0 || j%5==0) {
+            if (j%3==0) {
+                myprintf("%s", Fizz);
+            }
+            if (j%5==0) {
+                myprintf("%s", Buzz);
+            }
+            myprintf("%c", ' ');
+        } else {
+            myprintf("%d",j);
+            myprintf("%c", ' ');
+        }
+    }
+    myprintf("\n%%Fizz:%p\n%%Buzz:%p", Fizz, Buzz);
+\end{lstlisting}
+
+\begin{lstlisting}[caption=出力結果,label=output]
+  
+\end{lstlisting}
 
 \section{プログラムリスト} \label{sec:program}
 
