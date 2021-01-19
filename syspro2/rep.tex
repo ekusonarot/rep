@@ -41,7 +41,7 @@
 \begin{itemize}
   \item 課題2-1 教科書A.6節 「手続き呼出し規約」に従って，各種手続きをアセンブラで記述せよ．また，記述した syscalls.s の関数をC言語から呼び出すことで， \ref{sec:program}節リスト\ref{hanoi}ハノイの塔を完成させよ．
   \item 課題2-2 spim-gcc の引数保存に関するスタックの利用方法について，説明せよ． そのことは，規約上許されるスタックフレームの最小値24とどう関係しているか． このスタックフレームの最小値規約を守らないとどのような問題が生じるかについて解説せよ．
-  \item 課題2-3 リスト\ref{report2-1}をコンパイルした結果をもとに，auto変数とstatic変数の違い，ポインタと配列の違いについてレポートせよ．
+  \item 課題2-3 \ref{sec:program}節リスト\ref{report2-1}をコンパイルした結果をもとに，auto変数とstatic変数の違い，ポインタと配列の違いについてレポートせよ．
   \item 課題2-4 printf など，一部の関数は，任意の数の引数を取ることができる． これらの関数を可変引数関数と呼ぶ． MIPSのCコンパイラにおいて可変引数関数の実現方法について考察し，解説せよ．
   \item 課題2-5 printf のサブセットを実装し， SPIM上でその動作を確認する応用プログラム(自由なデモプログラム)を作成せよ．
 \end{itemize}
@@ -67,7 +67,7 @@ myprintf関数は3つの部分から構成することにした．それぞれ�
 
 \begin{itemize}
   \item myprintf本体(\ref{sec:myprintf}節)
-  \item 10進数を16進数に変換する関数(\ref{sec:16base}節)
+  \item 10進数を16進数に変換するprint\_nbase関数(\ref{sec:16base}節)
   \item 出力処理を行う関数(\ref{sec:io}節)
 \end{itemize}
 
@@ -83,14 +83,15 @@ myprintf関数は3つの部分から構成することにした．それぞれ�
 \subsection{10進数から16進数へ変換する関数} \label{sec:16base}
 
 この関数はmyprintf内で呼び出される．第1引数にint型のアドレスのデータを受け取り，
-第2引数に何進数へ変換するのかを指定する．
+第2引数に変換先の奇数を受け取る．
+戻り値はなく，変換した文字列を出力する.
 
 今回の実験では16進数への変換のみを想定している．
 
 \subsection{入出力処理} \label{sec:io}
 
 myprintf関数内で呼び出す入出力関数はアセンブラ言語で記述する．
-実装する関数は以下の4つである．
+実装する関数は以下の5つである．
 
 printから始まる関数は整数を出力する関数，1文字を出力する関数そして文字列を出力する関数である．
 readから始まる関数は動作確認用のプログラムで使用するユーザの入力を受け付ける関数である．
@@ -106,7 +107,7 @@ readから始まる関数は動作確認用のプログラムで使用するユ�
 \section{プログラムリストおよび，その説明} \label{sec:program_exp}
 
 \ref{sec:policy}節の設計方針に従い，myprintf関数を実装した．
-myprintf関数をリスト\ref{list:myprintf}，myprintf関数内で呼び出す
+myprintf関数およびprint\_nbase関数をリスト\ref{list:myprintf}，myprintf関数内で呼び出す
 出力関数を\ref{sec:program}節のリスト\ref{syscalls}に示す．
 
 \begin{lstlisting}[label=list:myprintf,caption=myprintf関数,numbers=left]
@@ -197,9 +198,12 @@ loadメニューからファイル名で指定し，runメニューを選んでo
 
 \subsection{課題2-1 各種手続きをアセンブラで記述せよ}
 
-文字列や整数の入出力をアセンブラで記述した（リスト\ref{syscalls}）．
+文字列や整数の入出力処理をアセンブラで記述し,syscalls.sとした
+（\ref{sec:program}節リスト\ref{syscalls}）．
 
-hanoi.sと作成したsyscalls.sをSPIM上にロードし実行した結果を\ref{hanoi_exec}に示す．
+hanoi.cをアセンブラにコンパイルしたhanoi.s(\ref{sec:program}節
+リスト\ref{hanoi.s})と作成したsyscalls.sをSPIM上にロードし実行した結果
+をリスト\ref{hanoi_exec}に示す．
 
 \begin{lstlisting}[caption=実行結果,label=hanoi_exec]
 Enter number of disks> 3
@@ -268,19 +272,18 @@ spim-gccのスタック利用規約から，第2引数は第1引数の4バイト
 \subsection{課題2-5 printf のサブセットを実装し， SPIM上でその動作を確認する応用プログラム(自由なデモプログラム)を作成せよ．}
 
 動作確認用にmyprintfを用いてFizzBuzzを書いた(リスト\ref{FizzBuzz})．
-FizzBuzzとは，1~任意の数までの数字を順番に表示する．
+FizzBuzzとは，1から任意の数までの数字を順番に表示する．
 ただし，3の倍数の時は「Fizz」，5の倍数の時は「Buzz」，3と5の倍数の時は「FizzBuzz」と表示する．
 
-リスト\ref{FizzBuzz}のプログラムはユーザから整数の入力をもらい，その数字まで
-FizzBuzzを表示する．
+リスト\ref{FizzBuzz}はユーザから整数の入力をもらい，その数字まで
+FizzBuzzを表示するプログラムである．
 
-\ref{sec:abstract}節で示した識別子をすべて使用した．
-出力結果をリスト\ref{output}に示す．
+15を入力したときの出力結果をリスト\ref{output}に示す．
 
-\begin{lstlisting}[caption=FizzBuzz,label=FizzBuzz,numbers=left]
-  int main() {
+\begin{lstlisting}[caption=FizzBuzz,label=FizzBuzz,numbers=left]  
+int main() {
     int i, j;
-    char Fizz[]="Fizz", Buzz[]="Buzz";
+    char Fizz[5]="Fizz", Buzz[5]="Buzz";
 
     i = read_int();
     for (j=1; j<=i; j++) {
@@ -297,10 +300,17 @@ FizzBuzzを表示する．
             myprintf("%c", ' ');
         }
     }
-    myprintf("\n%%Fizz:%p\n%%Buzz:%p", Fizz, Buzz);
+    myprintf("\n%%%%\n");
+    myprintf("Fizz:%p\n",Fizz);
+    myprintf("Buzz:%p\n",Buzz);
+}
 \end{lstlisting}
 
 \begin{lstlisting}[caption=出力結果,label=output]
+1 2 Fizz 4 Buzz Fizz 7 8 Fizz Buzz 11 Fizz 13 14 FizzBuzz
+%%
+Fizz:0x7FFFFD90
+Buzz:0x7FFFFD98
   
 \end{lstlisting}
 
@@ -331,6 +341,107 @@ FizzBuzzを表示する．
   }
 \end{lstlisting}
 
+\begin{lstlisting}[caption=hanoi.s,label=hanoi.s,numbers=left]
+	.file	1 "hanoi.c"
+
+ # -G value = 0, Arch = r2000, ISA = 1
+ # GNU C version 2.96 20000731 (Red Hat Linux 7.3 2.96-113.2) (mipsel-linux) compiled by GNU C version 2.96 20000731 (Red Hat Linux 7.3 2.96-113.2).
+ # options passed:  -mno-abicalls -mrnames -mmips-as
+ # -mno-check-zero-division -march=r2000 -O0 -fleading-underscore
+ # -finhibit-size-directive -fverbose-asm
+ # options enabled:  -fpeephole -ffunction-cse -fkeep-static-consts
+ # -fpcc-struct-return -fsched-interblock -fsched-spec -fbranch-count-reg
+ # -fnew-exceptions -fcommon -finhibit-size-directive -fverbose-asm
+ # -fgnu-linker -fargument-alias -fleading-underscore -fident -fmath-errno
+ # -mrnames -mno-check-zero-division -march=r2000
+
+
+	.rdata
+	.align	2
+$LC0:
+	.asciiz	"Move disk "
+	.align	2
+$LC1:
+	.asciiz	" from peg "
+	.align	2
+$LC2:
+	.asciiz	" to peg "
+	.align	2
+$LC3:
+	.asciiz	".\n"
+	.text
+	.align	2
+_hanoi:
+	subu	$sp,$sp,24
+	sw	$ra,20($sp)
+	sw	$fp,16($sp)
+	move	$fp,$sp
+	sw	$a0,24($fp)
+	sw	$a1,28($fp)
+	sw	$a2,32($fp)
+	sw	$a3,36($fp)
+	lw	$v0,24($fp)
+	beq	$v0,$zero,$L3
+	lw	$v0,24($fp)
+	addu	$v0,$v0,-1
+	move	$a0,$v0
+	lw	$a1,28($fp)
+	lw	$a2,36($fp)
+	lw	$a3,32($fp)
+	jal	_hanoi
+	la	$a0,$LC0
+	jal	_print_string
+	lw	$a0,24($fp)
+	jal	_print_int
+	la	$a0,$LC1
+	jal	_print_string
+	lw	$a0,28($fp)
+	jal	_print_int
+	la	$a0,$LC2
+	jal	_print_string
+	lw	$a0,32($fp)
+	jal	_print_int
+	la	$a0,$LC3
+	jal	_print_string
+	lw	$v0,24($fp)
+	addu	$v0,$v0,-1
+	move	$a0,$v0
+	lw	$a1,36($fp)
+	lw	$a2,32($fp)
+	lw	$a3,28($fp)
+	jal	_hanoi
+$L3:
+	move	$sp,$fp
+	lw	$ra,20($sp)
+	lw	$fp,16($sp)
+	addu	$sp,$sp,24
+	j	$ra
+	.rdata
+	.align	2
+$LC4:
+	.asciiz	"Enter number of disks> "
+	.text
+	.align	2
+main:
+	subu	$sp,$sp,32
+	sw	$ra,28($sp)
+	sw	$fp,24($sp)
+	move	$fp,$sp
+	la	$a0,$LC4
+	jal	_print_string
+	jal	_read_int
+	sw	$v0,16($fp)
+	lw	$a0,16($fp)
+	li	$a1,1			# 0x1
+	li	$a2,2			# 0x2
+	li	$a3,3			# 0x3
+	jal	_hanoi
+	move	$sp,$fp
+	lw	$ra,28($sp)
+	lw	$fp,24($sp)
+	addu	$sp,$sp,32
+	j	$ra
+\end{lstlisting}
 
 \begin{lstlisting}[caption=report2-1.c,label=report2-1,numbers=left]
 int primes_stat[10];
