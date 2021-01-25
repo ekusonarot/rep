@@ -175,6 +175,14 @@ $>$ xspim -mapped\_io\&\\
 
 loadメニューからファイル名で指定し，runメニューを選んでokを押すことで実行できる．
 
+\ref{sec:2-5}節では、myprintfを用いてFizzBuzzを解く.まず、spim-gccでmyprintfを
+コンパイルし,アセンブラコードを生成する.
+xspimを起動し生成したmyprintfのアセンブラコードとsyscalls.sをxspimにロードし実行する.
+
+コンソールに整数を入力すると,１から入力した数までFizzBuzzを実行する.
+1行目にFizzBuzz,2行目に\%\%,3行目4行目に文字列\"Fizz\",\"Buzz\"の
+アドレスが出力される.
+
 \section{プログラム作成過程に関する考察}
 
 \ref{sec:policy}節で述べた実装方針に基づいて，\ref{sec:program_exp}節ではその実装を行った．
@@ -251,7 +259,7 @@ spim-gccでは，関数を呼び出す際に第1引数～第4引数を保存す�
 リスト\ref{report2-1c}においてstring\_ptrと対応する部分は23行目にある．
 ここをみると，string\_ptrは18行目"ABCDEFG$\backslash$000"というデータを持った\$LC0へのアドレスを持っていることが分かる．
 一方，リスト\ref{report2-1c}において，string\_aryに対応する部分は26行目にある．
-ここでは配列が"ABCDEFG$\backslash$000"というでーたを持っていることが分かる．
+string\_aryは配列"ABCDEFG$\backslash$000"の先頭アドレスということが分かる．
 
 \subsection{課題2-4 MIPSのCコンパイラにおいて可変引数関数の実現方法について}
 
@@ -269,7 +277,7 @@ spim-gccのスタック利用規約から，第2引数は第1引数の4バイト
 
 引数の数と型については，第一引数の\%とsやdなどの識別子をみれば良い．
 
-\subsection{課題2-5 printf のサブセットを実装し， SPIM上でその動作を確認する応用プログラム(自由なデモプログラム)を作成せよ．}
+\subsection{課題2-5 printf のサブセットを実装し， SPIM上でその動作を確認する応用プログラム(自由なデモプログラム)を作成せよ．} \label{sec:2-5}
 
 動作確認用にmyprintfを用いてFizzBuzzを書いた(リスト\ref{FizzBuzz})．
 FizzBuzzとは，1から任意の数までの数字を順番に表示する．
