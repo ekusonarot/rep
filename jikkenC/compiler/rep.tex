@@ -1,7 +1,7 @@
 \documentclass[11pt]{jarticle}
 
 \usepackage[dvipdfmx]{graphicx}
-\usepackage{listings}
+\usepackage{listings,jlisting}
 
 \lstset{
     basicstyle={\ttfamily\small}, %書体の指定
@@ -18,880 +18,265 @@
 
 \begin{document}
 
-\title{情報工学実験C（ソフトウェア）\\ネットワークプログラミング}
+\title{情報工学実験C（ソフトウェア）\\コンパイラ}
 \author{09430565\\大橋虎ノ介}
 \date{提出日 2021年 1月 11日\\
-締切日 2021年  1月 12日}
+締切日 2021年  2月 2日}
 
 \maketitle
 \newpage
 
-\section{クライアント・サーバモデルの通信の仕組み}
+\section{概要}\label{sec:abstract}
 
-クライアント・サーバモデルとは，クライアントとサーバを相互にネットワークで接続するコンピュータネットワークモデルである．
-クライアントはサーバに処理を要求し，受け取った結果を利用して処理を行う．サーバはクライアントから要求された処理を行い結果を返す．
+本実験では，YACC，LEXというプログラムジェネレータを使って
+手続き型言語のコンパイラを作成する．
+コンパイラを作成することでプログラミング言語で書かれたプログラムと
+アセンブリ言語との対応について深く理解する．
 
-クライアントサーバ間ではプロトコルにしたがって通信を行う．プロトコルとはネットワークを介してコンピュータ同士が通信を行ううえで，相互に決められた約束事の集合である．
+コンパイルによって生成したアセンブラコードの動作確認は，mipsアセンブラ・プロセッサシミュレータである
+mapsを用いて行う．
 
-本実験では，クライアントサーバモデルの仕組みを学習し名簿管理プログラムを
-サーバ側とクライアント側で処理を記述する．
-最後に発展課題として，多数のクライアントからの要求を処理できるように
-サーバプログラムを拡張する．
+最終的に，作成したコンパイラでアセンブラコードを生成し，
+以下5つの問題を解くことができた．
+
+\begin{enumerate}
+    \item 1から10までの数の和
+    \item 5の階乗
+    \item FizzBuzz問題
+    \item エラトステネスのふるいを用いて1から1000までの素数を調べる
+    \item 2つの2$\times$2行列の積の計算
+\end{enumerate}
 
 \section{プログラムの作成方針}\label{sec:policy}
 
-本節では，名簿管理を行ううえでクライアント側とサーバ側の役割を説明し，
-クライアント・サーバプログラムの作成方針を述べる．
+\subsection{言語仕様} \label{sec:specific}
 
-クライアント・サーバともに通信を行う部分についてはシステムコールを用いて記述する．
+コンパイラが受理する言語仕様をリスト\ref{list:specific}に示す．
 
-\subsection{クライアント} \label{sec:client_policy}
+\begin{lstlisting}[label=list:specific, caption=言語仕様]
+<プログラム>::= <変数宣言部> <文集合> 
+<変数宣言部>::= <宣言文> <変数宣言部> 
+|   <宣言文> 
+<宣言文>::= define <識別子> ; 
+|   array <識別子> [ 数 ] ; 
+<文集合>::= <文> <文集合> | <文> 
+<文>::= <代入文> | <ループ文> | <条件分岐文> 
+<代入文>::= <変数> = <算術式> ; 
+<算術式>::= <算術式> <加減演算子> <項> | <項> 
+<項>::= <項> <乗除演算子> <因子> | <因子> 
+<因子>::= <変数> | 数 | ( <算術式> ) 
+<加減演算子>::= + | - 
+<乗除演算子>::= * | / | %
+<変数>::= <識別子> 
+|   <識別子> [ <算術式> ]
+<ループ文>::= while ( <条件式> ) { <文集合> } 
+<条件分岐文>::= if ( <条件式> ) { <文集合> } 
+|   if ( <条件式> ) { <文集合> } else { <文集合> }
+|   if ( <条件式> ) { <文集合> } else <条件分岐文>
+<条件式>::= <算術式> <比較演算子> <算術式>
+<比較演算子>::= == | < | >
+<識別子>::= <英字> <英数字列> | <英字>
+<英数字列>::= <英数字> <英数字列> | <英数字>
+<英数字>::= <英字> | <数字>
+<数>::= <数字> <数> | <数字>
+<英字>::= a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|
+C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z
+<数字>::= 0|1|2|3|4|5|6|7|8|9
+\end{lstlisting}
 
-クライアント側の役割は，ユーザの入力をサーバに送信しサーバからの応答を出力することである．
-クライアントサーバ間ではTCP/IPで通信を行う．TCP/IPで通信を行うために以下の5つの関数を使用する．
+\subsection{受理されるプログラム例}
 
+\ref{sec:specific}章で述べた言語仕様では，リスト\ref{program:example}のようなプログラムが受理される．
 
-\begin{enumerate}
-    \item gethostbyname
-    \item socket
-    \item connect
-    \item send
-    \item recv
-\end{enumerate}
+\begin{lstlisting}[caption=受理されるプログラムの例, label=program:example, numbers=left]
+    define i;
+    define sum;
+    array a[10];
 
-\subsubsection{gethostbyname}
+    i=0;
+    sum=0;
+    while(i<10){
+        sum=sum+i;
+        a[i]=sum;
+        i=i+1;
+    }
+\end{lstlisting}
 
-gethostbyname関数は与えられたホスト名に対応する構造体hostentを返す．
-クライアントプログラムの引数としてサーバのホスト名を受け取り，
-それをもとにサーバのIPアドレスを取得する．
+\subsection{メモリの使い方}
 
-\subsubsection{socket}
+コンパイルしたアセンブラコードでは，メモリ空間をテキスト領域，データ領域，スタック領域の3つに分けて使用する．
 
-socketシステムコールは通信のための端点を作成し、 ディスクリプターを返す。
-IPv4のTCP/IP通信を行うため，第1引数をAF\_INET,第2引数をSOCK\_STREAMとする．
+テキスト領域は0x00000024番地から始まる．命令を格納する領域である．
 
-\subsubsection{connect}
+データ領域は0x10004000番地から始まる．コンパイルするプログラム内で宣言された
+変数の値を保存する領域である．
 
-connectシステムコールは第1引数のディスクリプタが参照しているソケットを
-第2引数のsockaddr構造体が指定するアドレスに接続する．
-sockaddr構造体には，gethostbynameで取得したIPアドレスを含む．
+スタック領域は0x7ffffffcからアドレスの小さい方向に使用していく．算術式を展開する際に
+式の値を保存するために使用する．
 
-\subsubsection{send}
+\subsection{レジスタの使い方}
 
-sendシステムコールはディスクリプタが参照しているソケットの
-接続先へ第2引数のメッセージを転送する．
+ここでは，コンパイラによって生成するアセンブラコードでの
+レジスタの使い方についてまとめる．
 
-\subsubsection{recv}
-
-recvシステムコールはソケットからメッセージを受け取るのに使用される。
-ソケットに受け取るメッセージがなかった場合，メッセージ到着まで待つので
-複数回メッセージをループで受信する場合は，最後の受信を判定しループを抜けなければならない．
-
-\subsubsection{サーバに処理を要求し，応答を出力}
-
-クライアントプログラムではユーザの入力をサーバに送信し，その返答を出力する．
-入力は\%から始まるコマンドのみ送信し，それ以外の場合はエラーメッセージを表示する．
-
-サーバからの応答が，複数に分けて送られてくる場合がある．
-最後のメッセージの末尾を"$\backslash r\backslash n\backslash r\backslash n$"と定めることで，
-メッセージの受信が終わったことを判定する．
-
-\subsection{サーバ}
-
-サーバ側の役割は，クライアントからのコマンドを受け取り，
-コマンドに応じた処理を行い結果をクライアントに送信することである．
-
-サーバプログラムは，従来の名簿管理プログラムに通信処理を加えることで実装する．
-具体的には，従来ではユーザのコマンド入力を受け付け，標準出力で結果を表示していたものを，
-クライアントからの要求を受け付け，処理の結果をクライアントに送信するよう変更する．
-
-サーバプログラムでは通信のために6つの関数を使用する．
-クライアントプログラムの作成方針（\ref{sec:client_policy}節）で述べたものについては省略する．
-
-\begin{enumerate}
-    \item socket
-    \item bind
-    \item listen
-    \item accept
-    \item recv
-    \item send
-\end{enumerate}
-
-\subsubsection{bind}
-
-bindは第1引数ファイルディスクリプタが参照するソケットに
-第2引数のsockaddr構造体で指定されたアドレスを割り当てる．
-
-sockaddr構造体には，受け付けるポート番号とアドレスの情報を書き込む．
-このサーバプログラムではすべてのアドレスからの要求を受け付けるようにする．
-
-\subsubsection{listen}
-
-listenはファイルディスクリプタが参照するソケットを接続待ちとする．
-接続待ちのソケットはacceptを使って到着した接続要求を受け付けるのに使用される．
-
-\subsubsection{accept}
-
-acceptは第1引数のファイルディスクリプタの参照する接続待ちソケット宛ての
-保留状態の接続要求が入っているキューから
-先頭の接続要求を取り出し，接続済みソケットを新規に生成し
-そのソケットを参照する新しいファイルディスクリプターを返す．
-
-\subsubsection{クライアントへメッセージを送信する関数} \label{sec:response}
-
-サーバプログラムは\%から始まるコマンドを受け付け，コマンドに対して適切な処理を行いクライアントに結果を送信する．
-従来の名簿管理プログラムでは，各処理をそれぞれの関数で処理し，結果を標準出力に
-出力していた．
-
-サーバプログラムでは結果やメッセージをクライアント側に送信しなければならない．そこで，
-メッセージの送信やエラー処理を行う関数を定義し，名簿管理プログラム内のprintf関数を置き換えることにする．
-
-\subsubsection{発展課題　多重要求の受け付け}
-
-発展課題の多重要求の受け付けには，プロセスを生成するforkシステムコールを用いて解決する．
-クライアントからの接続要求が発生したとき，forkで子プロセスを生成する．子プロセスはクライアントからの要求に応え，
-親プロセスは新たなクライアントからの接続要求を待機する．
-クライアントと切断した子プロセスはexit(0)で終了する．
-
-\section{プログラムおよび，その説明}
-
-プログラムの作成方針（\ref{sec:policy}節）に従い，名簿管理を行うクライアントサーバプログラムを作成した．
-プログラムリストは\ref{sec:program}節に添付している．本節では，
-クライアントサーバ間でやり取りするプロトコルとプログラムの主な流れについて説明する．
-
-\subsection{プロトコル}
-
-クライアントからサーバへの処理のリクエストは以下の形式である．\%の後に一文字のコマンド．
-引数をとるコマンドの場合はスペースを開けて引数を入力する．コマンドの詳細は\ref{sec:command}節で述べる．
-\begin{center}
-    \%[コマンド] [引数]
-\end{center}
-
-サーバからクライアントへのレスポンスは何回かに分けて送られてくる場合がある．
-クライアント側が，メッセージの受信が終わったことを判定するために最後のメッセージの
-末尾を"$\backslash r\backslash n\backslash r\backslash n$"とする．
-
-\subsection{コマンド} \label{sec:command}
-
-実装したコマンドは6つある．コマンド一覧を表\ref{table:command}に示す．
-\%Rと\%Wは，サーバ側のファイルの読み書きを行う．
-\%Qコマンドを実行すると，クライアントプログラムは終了し，
-サーバプログラムは新たなクライアントからの接続待ち状態となる
-
-各コマンドの実行例をプログラムの使用方法（\ref{sec:usage}節）のリスト\ref{client_exec}に
-示す．
-
-\begin{table}[h] \caption{コマンド一覧} \label{table:command}
+\begin{table}[h] \label{table:register} \caption{レジスタの使い方}
     \begin{center}
-        \begin{tabular}{l|l|l} \hline
-            コマンド & 解説 & 引数 \\ \hline \hline
-            \%Q & サーバから切断 & なし \\ 
-            \%C & プロファイルの数を表示 & なし \\ 
-            \%P & プロファイルを表示 & プロファイル件数(0以上の整数) \\
-            \%R & ファイルの読み込み & ファイル名 \\
-            \%W & ファイルの書き込み & ファイル名 \\
-            \%F & 検索 & キーワード \\ \hline
+        \begin{tabular}{l|l}
+            レジスタ & 使い方 \\ \hline
+            \$sp & スタックポインタ，スタック領域の操作位置を保存 \\
+            \$t0 & データ領域の先頭番地を保存 \\
+            \$t1 & 算術式において計算結果を一時的な退避 \\
+            \$t2 & 条件式の結果を保存 \\
+            \$t3 & 変数のオフセットを保存 \\
+            \$t4 & 代入文における計算結果の一時的な退避 \\
+            \$t5 & 即値データを保存 \\
+            \$s0 & 条件式において計算結果の一時的な退避 \\
+            \$v0 & 計算結果を保存
         \end{tabular}
     \end{center}
 \end{table}
 
-\subsection{クライアントプログラム}
+\subsection{算術式のコード生成}
 
-クライアントプログラムは\ref{sec:program}節のリスト\ref{client}に添付している．
+算術式のコード生成には，スタックを用いる方法を採用した．
+この方法は，抽象構文木をたどりながらコード生成を行う．
+スタックは，中間の計算結果を保存するために使用する．
 
-21行目gethostbyname関数から41行目のconnect関数の間で，名前解決を行いサーバへ接続をする．
+以下に算術式のコード生成の手順を示す．
 
-48行目から75行目のfor文でサーバと通信を行う．60行目でユーザーが\%Qを入力するとループを抜ける．
+\begin{enumerate}
+    \item 左の子のコード生成を行う
+    \item 1.の結果が入っている\$v0レジスタの値をスタックにPUSHする．
+    \item 右の子のコード生成を行う．
+    \item \$v0レジスタの内容を\$t1レジスタに移動．
+    \item スタックから値をPOPして\$v0に入れる
+    \item このノードに対応した演算 \$v0, \$v0, \$t1
+\end{enumerate}
 
-62行目から73行目のfor文でサーバからの応答を連続して受け付けるようにしている．71行目でメッセージの末尾が
-"$\backslash r\backslash n\backslash r\backslash n$"であればループを抜けるようにしている．
+スタックはスタックポインタ\$spで実現する．
+以下にPUSH，POPの手順を示す．\\
 
-\subsection{サーバプログラム}
+\textbf{PUSH}
 
-サーバプログラムは\ref{sec:program}節のリスト\ref{server}に添付している．
+\begin{enumerate}
+    \item \$spを4減らす．
+    \item \$spのアドレスに\$v0の内容を保存する．
+\end{enumerate}
 
-プログラムの作成方針（\ref{sec:policy}節）で述べた通り，リスト\ref{sendMsg}のようにsendMsg関数を実装した．
-sendMsg関数は文字列のポインタを受け取り，クライアントに文字列を送信する関数である．
-内部でsendシステムコールを呼び出し，エラーが発生するとエラー内容を出力し，ファイルディスクリプタを閉じ
-プロセスを終了する．
+\textbf{POP}
 
-\begin{lstlisting}[caption=sendMsg関数,label=sendMsg,numbers=left]
-    void sendMsg(char* msg) {
-    if (send(new_s, msg, strlen(msg), 0) == -1) {
-      printf("send: failed\n%s\n",strerror(errno));
-      close(new_s);
-      exit(1);
+\begin{enumerate}
+    \item \$spの内容を\$v0にロードする．
+    \item \$spに4加える．
+\end{enumerate}
+
+\section{工夫した点}
+
+本節では，基本言語仕様から独自に拡張した点を紹介する．
+
+\subsection{配列の添え字に変数を含む算術式が使用可能}
+
+基本言語仕様では，配列の添え字に定数のみ対応していたが，変数を含む算術式を
+使用できるように拡張した．
+
+これにより，ループ文などで配列の要素を更新することができる．
+また，２次元配列を実装せずとも，添え字に２つの変数を用いることで疑似的に２次元配列を実現可能である．
+
+\subsection{剰余演算子}
+
+基本言語仕様では四則演算のみ対応していたが，それに加えて剰余演算子を使用できるように拡張した．
+これにより，FizzBuzz問題を簡単に書けるようになった
+
+\section{最終課題を解くプログラム}
+
+\subsection{1から10までの数の和}
+
+\begin{lstlisting}
+    define i;
+    define sum;
+
+    i=0;
+    sum=0;
+    while(i<10){
+        i=i+1;
+        sum=sum+i;
     }
 \end{lstlisting}
 
-83行目から306行目は，各コマンドを処理する関数を記述している．
-従来の名簿管理プログラムのprintf関数を上記のリスト\ref{sendMsg}のsendMsg関数に置き換えて実装した．
+\subsection{5の階乗}
 
-main関数内に通信を行う処理を記述している．
-332行目から358行目でソケットを作成し，クライアントからの接続を待ち受け状態にする．
+\begin{lstlisting}
+    define i;
+    define factorial;
 
-360行目から401行目ではクライアントからの接続を受け付けている．
-
-クライアントと接続状態にあるとき，372行目から395行目をループし，\%Qコマンドが送られてくると
-ループを抜ける．
-
-\subsection{発展課題　多重要求の受け付け}
-
-多数のクライアントからの要求を処理する発展課題はforkシステムコールを用いた．
-forkとは，プロセスのコピーを生成するものである．
-
-リスト\ref{server}の367行目：forkを呼び出している．child\_pidには親プロセスであれば
-子プロセスのプロセスID，子プロセスであれば0が代入される．
-
-370行目のif文で親プロセスと子プロセスで処理を分けている．子プロセスはクライアントとの通信を行い，
-親プロセスは361行目：acceptに戻り，次の接続要求を受け付ける．
-
-\section{プログラムの使用方法} \label{sec:usage}
-
-クライアントプログラムは引数としてホスト名を与える．
-実行が確認できたら，表\ref{table:command}にあるコマンドを入力することで
-対応する処理をサーバが行う．リスト\ref{client_exec}は実行した例である．
-
-\begin{lstlisting}[caption=クライアントプログラム実行例,label=client_exec]
-    $ ./client localhost
-    localhost>%R sample.csv
-    file: sample.csv read
-
-
-    localhost>%P 3
-    Id    : 5100046
-    Name  : The Bridge
-    Birth : 1845-11-02
-    Addr  : 14 Seafield Road Longman Inverness
-    Com.  : SEN Unit 2.0 Open
-    Id    : 5100127
-    Name  : Bower Primary School
-    Birth : 1908-01-19
-    Addr  : Bowermadden Bower Caithness
-    Com.  : 01955 641225 Primary 25 2.6 Open
-    Id    : 5100224
-    Name  : Canisbay Primary School
-    Birth : 1928-07-05
-    Addr  : Canisbay Wick
-    Com.  : 01955 611337 Primary 56 3.5 Open
-
-
-    localhost>%F 5100046
-    Id    : 5100046
-    Name  : The Bridge
-    Birth : 1845-11-02
-    Addr  : 14 Seafield Road Longman Inverness
-    Com.  : SEN Unit 2.0 Open
-
-
-    localhost>%C
-    2886 profile(s)
-
-
-    localhost>%W a.csv
-    file: a.csv written
-
-
-    localhost>%Q
-\end{lstlisting}
-
-サーバプログラムは引数を何も取らない．ターミナルでフォアグランド実行することで
-クライアントから接続されたことや切断されたことが確認できる．その様子をリスト\ref{server_exec}
-に示す．
-
-\begin{lstlisting}[caption=サーバプログラムの実行例,label=server_exec]
-    $ ./server 
-    [INFO] CONNECTED!!!
-    [INFO] DISCONNECTED!!!
-\end{lstlisting}
-
-
-\section{プログラムの作成過程に関する考察}
-
-\ref{sec:policy}節で述べた実装方針に基づいて，実装を行った．
-しかし，実装にあたって改良できる点があった．本節ではクライアントサーバプログラムの
-作成過程において検討した内容及び，考察した内容について述べる．
-
-\subsection{サーバからの送信回数の削減}
-
-\%Pコマンドを実行した際，すべてのプロファイルが表示されるまでに時間がかかっていると感じた．
-原因はサーバからクライアント側へのメッセージの回数が多いことだと考え，
-1回の送信で大きなデータを送信し全体としての送信の回数を減らせるようにsendMsg関数を改良した（リスト\ref{sendMsgKAI}）．
-
-この関数は引数の文字列をその都度送信するのではなく一度保存する．
-保存した文字列の長さが1024を超えるときにのみ送信することで全体の送信回数を減らせる．
-改良前は464408文字を14430回で送信していたが，改良後は1回で約1024文字送信するので
-送信回数が453回に減らせる．つまり，送信時間が約30分の1になるはずである．
-
-改良の結果を，表\ref{table:P}に示す．
-サーバ側の送信時間は，改良前に比べて約30分の1の処理時間に短縮することができた．
-しかし，クライアント側ですべてのプロファイルを表示する速度はほとんど変わらなかった．おそらく，送受信の
-速度よりも，printf関数に時間がかかっているのだと考えられる．
-
-\begin{lstlisting}[caption=改良したsendMsg,label=sendMsgKAI,numbers=left]
-    void sendMsg(char* msg) {
-        int msglen = strlen(msg);
-        chars+=msglen;
-        lines++;
-        int msgbuflen = strlen(msgbuf);
-        int isLast = !strcmp(msg, "\r\n\r\n");
-        if (isLast) {
-        if (send(new_s, msgbuf, strlen(msgbuf), 0) == -1) {
-            printf("send: failed\n%s\n",strerror(errno));
-            close(new_s);
-            exit(1);
-        }
-        if (send(new_s, msg, strlen(msg), 0) == -1) {
-            printf("send: failed\n%s\n",strerror(errno));
-            close(new_s);
-            exit(1);
-        }
-        msgbuf[0] = '\0';
-        return;
-        } else if (MSG_SIZE < msglen + msgbuflen) {
-        if (send(new_s, msgbuf, strlen(msgbuf), 0) == -1) {
-            printf("send: failed\n%s\n",strerror(errno));
-            close(new_s);
-            exit(1);
-        }
-        msgbuf[0] = '\0';
-        strcat(msgbuf, msg);
-        return;
-        } else {
-        strcat(msgbuf, msg);
-        return;
-        }
-        
-    } 
-\end{lstlisting}
-
-\begin{table}[h] \caption{\%P実行時の処理時間} \label{table:P}
-    \begin{center}
-        \begin{tabular}{l|l|l} \hline
-             & 改良前[ms] & 改良後[ms] \\ \hline \hline
-            サーバ側送信 & 0.128906 & 0.003906 \\ 
-            クライアント側表示 & 0.105469 & 0.074219 \\ \hline
-        \end{tabular}
-    \end{center}
-\end{table}
-
-\section{得られた結果に関する考察}
-
-演習課題のプログラムについて仕様と要件をいずれも満たしていることをプログラムの説明及び使用方法における
-実行例によって示した．
-ここでは，forkを使用した多重受け付けについて考察を述べる．
-
-発展課題である多数クライアントからの要求を処理する方法として，forkシステムコールを用いた．
-今回の実装には2つの問題点がある．
-
-1つめは，OSの管理するプロセスのリストを埋めつくすと新たにプロセスを生成できなくなってしまうことである．
-たとえば，クライアントから大量の接続要求があった場合，その分だけ子プロセスを生成する．
-したがって，同時接続できるクライアントの上限はプロセスリストの大きさに依存する．
-また，クライアント側が\%Qコマンド以外の方法で切断したとき，サーバ側ではプロセスを終了できない．
-なので，クライアントが正しい手順で終了しなければ，プロセスリストを消費し同時接続できる
-クライアントの数が減る．
-
-2つめは，プログラムにバグがあった場合，子プロセスがさらに子プロセスを生み出すような動作をする可能性があることだ．
-\ref{sec:program}節，リスト\ref{server}の370行目で子プロセスと親プロセスの処理を分けている．
-ここでバグが発生し，子プロセスが親プロセスの処理を行った時，子プロセスがさらに子プロセスを生成することがある．
-
-これらを解決するにはプロセスを生成しない方法を採用するべきである．
-たとえば，複数のファイルディスクリプタを管理するselect関数の使用が考えられるが，今回は時間が足りなかったため
-実装はしなかった．
-
-\section{作成したプログラム} \label{sec:program}
-
-作成したプログラムを以下に添付する．
-
-\begin{lstlisting}[caption=クライアント側プログラム,label=client,numbers=left]
-    #include<stdio.h>
-    #include<netdb.h>
-    #include<arpa/inet.h>
-    #include<strings.h>
-    #include<string.h>
-    #include<sys/socket.h>
-    #include<errno.h>
-
-    #define MSG_SIZE 1024
-    #define PORT 10650
-
-    int main(int argc, char *argv[]) {
-        if (argc < 2) return 0;
-        int fd, iCount, recv_size;
-        char send_buf[MSG_SIZE];
-        char recv_buf[MSG_SIZE];
-        struct hostent *h;
-        struct sockaddr_in sai;
-        struct sockaddr *sa;
-
-        h = gethostbyname(argv[1]);
-        if (!h) {
-            printf("gethostname: failed\n%s\n",strerror(errno));
-            return 1;
-        }
-
-        fd = socket(AF_INET, SOCK_STREAM, 0);
-        if (fd == -1) {
-            printf("socket: failed\n%s\n",strerror(errno));
-            return 1;
-        }
-
-        sai.sin_family = h->h_addrtype;
-        sai.sin_port = htons(PORT);
-        bzero((char *)&sai.sin_addr, sizeof(sai.sin_addr));
-        memcpy((char *)&sai.sin_addr, (char *)h->h_addr, h->h_length);
-            
-        sa = (struct sockaddr*)&sai;
-        
-
-        if ( (connect(fd, sa, sizeof(*sa))) == -1) {
-            printf("connect: failed\n%s\n",strerror(errno));
-            close(fd);
-            return 1;
-        }
-
-
-        for (;;) {
-            char buf[MSG_SIZE];
-            printf("%s>",argv[1]);
-            fgets(buf, sizeof(buf), stdin);
-            sscanf(buf, "%[^t\n]",send_buf);
-            memset(buf, 0, sizeof(buf));
-            
-            if (send(fd,(void*)send_buf, strlen(send_buf),0) == -1) {
-                printf("send: failed\n%s\n",strerror(errno));
-                close(fd);
-                return 1;
-            }
-            if (send_buf[0]=='%' && send_buf[1]=='Q') break;
-
-            for (;;) {
-                memset(recv_buf, 0, sizeof(recv_buf));
-                recv_size = recv(fd,(void*)recv_buf, sizeof(recv_buf), 0);
-                if (recv_size == -1) {
-                    printf("recv: failed\n%s\n",strerror(errno));
-                    close(fd);
-                    return 1;
-                }
-                printf("%s", recv_buf);
-                if (strcmp(&recv_buf[recv_size-4], "\r\n\r\n") == 0) {
-                    break;
-                }
-            }
-        }    
-        close(fd);
-        return 0;
+    i=0;
+    factorial=0;
+    while(i<5){
+        i=i+1;
+        factorial=factorial*i;
     }
-
 \end{lstlisting}
 
-\begin{lstlisting}[caption=サーバ側プログラム,label=server,numbers=left]
-    #include<stdio.h>
-    #include<stdlib.h>
-    #include<string.h>
-    #include<netdb.h>
-    #include<arpa/inet.h>
-    #include<strings.h>
-    #include<sys/socket.h>
-    #include<errno.h>
-    #include<unistd.h>
-    #include<time.h>
+\subsection{FizzBuzz問題}
 
-    #define MSG_SIZE 1024
-    #define PORT 10650
-    #define CLOCK_PER_SEC (4*1000*1000)
-    int parse_input (FILE	*fp);
-    int new_s;
-    char msgbuf[MSG_SIZE];
-    //***改良後***
-    void sendMsg(char* msg) {
-        int msglen = strlen(msg);
-        int msgbuflen = strlen(msgbuf);
-        int isLast = !strcmp(msg, "\r\n\r\n");
-        if (isLast) {
-        if (send(new_s, msgbuf, strlen(msgbuf), 0) == -1) {
-            printf("send: failed\n%s\n",strerror(errno));
-            close(new_s);
-            exit(1);
+\begin{lstlisting}
+    define i;
+    array FizzBuzz[100];
+
+    i=0;
+    while(i<100){
+        FizzBuzz[i]=i;
+
+        if(i%5==0){
+            FizzBuzz[i]=187;
+        }else if(i%3==0){
+            FizzBuzz[i]=255;
         }
-        if (send(new_s, msg, strlen(msg), 0) == -1) {
-            printf("send: failed\n%s\n",strerror(errno));
-            close(new_s);
-            exit(1);
+        if(i%5==0){
+            if(i%3==0){
+                FizzBuzz[i]=251;
+            }
         }
-        msgbuf[0] = '\0';
-        return;
-        } else if (MSG_SIZE < msglen + msgbuflen) {
-        if (send(new_s, msgbuf, strlen(msgbuf), 0) == -1) {
-            printf("send: failed\n%s\n",strerror(errno));
-            close(new_s);
-            exit(1);
-        }
-        msgbuf[0] = '\0';
-        strcat(msgbuf, msg);
-        return;
-        } else {
-        strcat(msgbuf, msg);
-        return;
-        }
-        
-    } 
+        i=i+1;
+    }
+\end{lstlisting}
+
+\subsection{エラトステネスのふるいを用いて1から1000までの素数を調べる}
+
+\begin{lstlisting}
+    define dummy;
+    define i;
+    define j;
+    array list[1000];
+    array prime[500];
     
-    /***改良前***
-    void sendMsg(char* msg) {
-        if (send(new_s, msg, strlen(msg), 0) == -1) {
-        printf("send: failed\n%s\n",strerror(errno));
-        close(new_s);
-        exit(1);
-        }
-    }
-    */
-    /* 個人データ用構造体 ******************************************** */
-    struct date {
-    int y;
-    int m;
-    int d;
-    };
-
-    struct profile {
-    int         id;
-    char        name[70];
-    struct date birthday;
-    char        home[70];
-    char       *comment;
-    };
-
-    /* グローバル変数 ************************************************ */
-    struct profile profile_data[10000];
-    int    nprofiles = 0;
-
-    /* ************************************************************** *
-    * 文字列s中の文字fromを文字toで置き換える関数
-    * *************************************************************** */
-    int
-    subst (char *s, char from, char to) {
-        int n, c=0;
-
-        for (n = 0; s[n] != '\0'; n++) {
-            if (s[n] == from) {
-                s[n] = to;
-                c++;
-            }
-        }
-        return c;
+    i=0;
+    while(i<999){
+        list[i]=i+2;
+        i=i+1;
     }
 
-    /* ************************************************************** *
-    * 文字列strを区切り文字separatorで最大nitems個に分割して、分割した文字列の
-    * それぞれの先頭アドレスを配列retに代入する関数
-    * *************************************************************** */
-    int
-    split (char *str, char *ret[], char separator, int nitems) {
-    int count = 0, n;
-
-    ret[count++] = str;
-
-    for (n = 0; str[n] != '\0' && count < nitems; n++) {
-        if (str[n] == separator) {
-        str[n] = '\0';
-        ret[count++] = str + n + 1;
-        }
-    }
-    return count;
-    }
-
-    /* ************************************************************* *
-    * 入力文字列lineを解析してデータを登録する関数
-    * ************************************************************** */
-    struct profile*
-    add_profile (struct profile *p,
-            char           *line) {
-    char *data[5], *birth[3];
-
-    split(line, data, ',', 5);
-
-    p->id = atoi(data[0]);
-    strcpy(p->name, data[1]);
-    strcpy(p->home, data[3]);
-    p->comment = (char *) malloc(sizeof(char) * (strlen(data[4])+1));
-    strcpy(p->comment, data[4]);
-
-    
-    split(data[2], birth, '-', 3);
-    p->birthday.y = atoi(birth[0]);
-    p->birthday.m = atoi(birth[1]);
-    p->birthday.d = atoi(birth[2]);
-
-    return p;
-    }
-
-    /* チェックコマンド(%C) ***************************************** */
-    void
-    command_check (void) {
-        char tmpmsg[MSG_SIZE];
-        sprintf (tmpmsg,"%d profile(s)\n", nprofiles);
-        sendMsg(tmpmsg);
-    }
-
-    /* ********************************************************* *
-    * 登録データを１つ表示する関数
-    * ********************************************************** */
-    void
-    print_profile (struct profile	*p) {
-        char tmpmsg[MSG_SIZE];
-        sprintf(tmpmsg, "Id    : %d\n", p->id);
-        sendMsg(tmpmsg);
-        sprintf(tmpmsg, "Name  : %s\n", p->name);
-        sendMsg(tmpmsg);
-        sprintf(tmpmsg, "Birth : %04d-%02d-%02d\n",p->birthday.y,p->birthday.m,p->birthday.d);
-        sendMsg(tmpmsg);
-        sprintf(tmpmsg, "Addr  : %s\n", p->home);
-        sendMsg(tmpmsg);
-        sprintf(tmpmsg, "Com.  : %s\n", p->comment);
-        sendMsg(tmpmsg);
-    }
-    /* ********************************************************** *
-    * データをCSV形式で出力する関数
-    * *********************************************************** */
-    void
-    print_profile_csv (FILE *fp, struct profile *p) {
-    fprintf(fp, "%d,", p->id);
-    fprintf(fp, "%s,", p->name);
-    fprintf(fp, "%04d-%02d-%02d,",p->birthday.y,p->birthday.m,p->birthday.d);
-    fprintf(fp, "%s,", p->home);
-    fprintf(fp, "%s\n", p->comment);
-    }
-
-    /* プリントコマンド(%P) ************************************** */
-    void
-    command_print (struct profile	*p,
-            int		num) {
-    int	start = 0, end = nprofiles;
-    int	n;
-    
-    if (num > 0 && num < nprofiles) {
-        end = num;
-    } else if (num < 0 && num + end > 0) {
-        start = num + end;
-    }
-    for (n = start; n < end; n++) {
-        print_profile(&p[n]);
-    }
-    if(nprofiles==0) {
-        sendMsg("No Profile");
-    }
-    }
-
-    /* 読み込みコマンド(%R) ************************************* */
-    void
-    command_read (struct profile	*p,
-            char		*filename) {
-        FILE *fp = fopen(filename, "r");
-        char tmpmsg[MSG_SIZE];
-        if (fp == NULL){
-            sprintf(tmpmsg, "%%R: file open error %s.\n", filename);
-            sendMsg(tmpmsg);
-        } else {
-            while (parse_input(fp));
-            sprintf(tmpmsg,"file: %s read\n", filename);
-            sendMsg(tmpmsg);
-            fclose(fp);
-        }
-    }
-
-    /* 書き出しコマンド(%W) ************************************** */
-    void
-    command_write (struct profile	*p,
-            char		*filename) {
-        char tmpmsg[MSG_SIZE];
-        int  n;
-        FILE *fp = fopen(filename, "w");
-        char msg[MSG_SIZE];
-
-        if (fp == NULL){
-            sprintf(tmpmsg, "%%W: file write error %s.\n", filename);
-            sendMsg(tmpmsg);
-        } else {
-            for (n = 0; n < nprofiles; n++) {
-                print_profile_csv(fp, &p[n]);
-            }
-            sprintf(tmpmsg,"file: %s written\n", filename);
-            sendMsg(tmpmsg);
-            fclose(fp);
-        }
-    }
-
-    /* ********************************************************** *
-    * IDの値を文字列に変換する関数
-    * ********************************************************** */
-    void
-    make_id_string (int  id,
-            char *str) {
-    sprintf (str, "%d", id);
-    }
-
-    /* ******************************************************** *
-    * Date構造体の値を-区切りの文字列に変換する関数
-    * ********************************************************* */
-    void
-    make_birth_string (struct date *birth,
-            char        *str) {
-    sprintf (str, "%04d-%02d-%02d", birth->y, birth->m, birth->d);
-    }
-
-    /* 検索コマンド(%F) **************************************** */
-    void
-    command_find (struct profile	*p,
-            char		*keyword) {
-    char            id[8], birth[11];
-    int             n,notFind=1;
-
-    for (n = 0; n < nprofiles; n++) {
-        make_id_string (p[n].id, id);
-        make_birth_string (&p[n].birthday, birth);
-        if (strcmp (id, keyword) == 0        ||
-        strcmp (birth, keyword) == 0     ||
-        strcmp (p[n].name, keyword) == 0 ||
-        strcmp (p[n].home, keyword) == 0) {
-        print_profile (&p[n]);
-        printf ("file id:%s sended\n",id);
-        notFind=0;
-        }
-    }
-    if (notFind) {
-        sendMsg("Did not match any profile...");
-    }
-    }
-
-    /* ************************************************************ *
-    * コマンド分岐関数
-    * ************************************************************* */
-    void
-    exec_command (char	command,
-            char	*parameter) {
-        char tmpmsg[MSG_SIZE];
-        switch (command) {
-        case 'C':
-            command_check();
-            break;
-        case 'P':
-            command_print(profile_data, atoi(parameter));
-            break;
-        case 'R':
-            command_read(profile_data, parameter);
-            break;
-        case 'W':
-            command_write(profile_data, parameter);    
-            break;
-        case 'F':
-            command_find(profile_data, parameter);    
-            break;
-        default:
-            sprintf(tmpmsg,"Invalid command '%c' was found.\n", command);
-            sendMsg(tmpmsg);
-            break;
-    }
-    }	      
-
-    /* ********************************************************* *
-    * 入力文字列の解析
-    * ********************************************************** */
-    int
-    parse_input (FILE	*fp) {
-    char line[1024];
-
-    if (fgets(line, 1024, fp) == NULL) return 0;
-
-    subst(line, '\n', '\0');
-    if (line[0] == '%') {
-        exec_command(line[1], &line[3]);
-    } else {
-        add_profile(&profile_data[nprofiles], line);
-        nprofiles++;
-    }
-    return 1;
-    }
-
-    /* ********************************************************* *
-    * メイン関数
-    * ********************************************************** */
-    int
-    main (void) {
-        int fd, recv_size;
-        struct sockaddr_in sai;
-        struct sockaddr *sa;
-        char recv_buf[MSG_SIZE];
-
-        fd = socket(AF_INET, SOCK_STREAM, 0);
-        if (fd == -1) {
-            printf("socket: failed\n%s\n",strerror(errno));
-            return -1;
-        }
-
-        memset((char *)&sai, 0, sizeof(sai));
-        sai.sin_family = AF_INET;
-        sai.sin_addr.s_addr = htonl(INADDR_ANY);
-        sai.sin_port = htons(PORT);
-        sa = (struct sockaddr*)&sai;
-        if (bind(fd, sa, sizeof(*sa)) == -1) {
-            printf("bind: failed\n%s\n",strerror(errno));
-            close(fd);
-            return -1;
-        }
-
-        if (listen(fd, 5) == -1) {
-            printf("listen: failed\n%s\n",strerror(errno));
-            close(fd);
-            return -1;
-        }
-
-        for (;;) {
-            new_s = accept(fd, NULL, NULL);
-            if (new_s == -1) {
-                printf("accept: failed\n%s\n",strerror(errno));
-                close(fd);
-                return -1;
-            }
-            pid_t child_pid = fork();
-            if (child_pid == -1) {
-            break;
-            } else if (child_pid == 0) {
-            printf("[INFO] CONNECTED!!!\n");
-            for (;;) {
-                memset(recv_buf, 0, sizeof(recv_buf));
-                recv_size = recv(new_s, recv_buf, sizeof(recv_buf), 0);
-                if (recv_size == -1) {
-                    printf("recv: failed\n%s\n",strerror(errno));
-                    close(fd);
-                    close(new_s);
-                    exit(1);
+    i=0;
+    while(i<10){
+        j=0;
+        while(j<999){
+            if(list[j]==0){
+                dummy=0;
+            } else {
+                prime[i]=list[j];
+                while(j<999){
+                    if(list[j]%prime[i]==0){
+                        list[j]=0;
+                    }
+                    j=j+1;
                 }
-
-                if (recv_buf[0]=='%' && recv_buf[1]=='Q') break;
-                
-                long st = clock();
-
-                int count = subst(recv_buf, '\n', '\0');
-                if (recv_buf[0] == '%') {
-                    exec_command(recv_buf[1], &recv_buf[3]);
-                } else {
-                    sendMsg("Please add \"%\" at the begining");
-                }
-                
-                sendMsg("\r\n\r\n");
-                printf("time: %fms\n", (double)(clock()-st)/CLOCK_PER_SEC);
             }
-            nprofiles = 0;
-            close(new_s);
-            printf("[INFO] DISCONNECTED!!!\n");
-            exit(0);
-            }  
+            j=j+1;
         }
-        close(fd);
-
-        return 0;
+        i=i+1;
     }
-
 \end{lstlisting}
+
+\subsection{2つの2$\times$2行列の積の計算}
 
 \end{document}
