@@ -20,7 +20,7 @@
 
 \title{情報工学実験C（ソフトウェア）\\コンパイラ}
 \author{09430565\\大橋虎ノ介}
-\date{提出日 2021年 1月 11日\\
+\date{提出日 2021年 1月 28日\\
 締切日 2021年  2月 2日}
 
 \maketitle
@@ -30,8 +30,8 @@
 
 本実験では，YACC，LEXというプログラムジェネレータを使って
 手続き型言語のコンパイラを作成する．
-コンパイラを作成することでプログラミング言語で書かれたプログラムと
-アセンブリ言語との対応について深く理解する．
+実験の目的は，コンパイラを作成することでプログラミング言語で書かれたプログラムと
+アセンブリ言語との対応について深く理解することである．
 
 コンパイルによって生成したアセンブラコードの動作確認は，mipsアセンブラ・プロセッサシミュレータである
 mapsを用いて行う．
@@ -191,7 +191,12 @@ C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z
 
 \subsection{1から10までの数の和}
 
-\begin{lstlisting}
+リスト\ref{list:1to10}に1から10までの数の和を求めるプログラムを示す．
+iはカウントのための変数，sumは和を保存する変数である．
+
+正しく動作すれば，変数sum(0x10004000番地)に0x37(55)が保存される．
+
+\begin{lstlisting}[caption=1から10までの数の和,label=list:1to10,numbers=left]
     define i;
     define sum;
 
@@ -205,12 +210,17 @@ C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z
 
 \subsection{5の階乗}
 
-\begin{lstlisting}
+リスト\ref{list:factorial}は5の階乗を求めるプログラムである．
+iはカウントのための変数，factorialは階乗した結果を保存する変数である．
+
+正しく動作すれば，変数factorial(0x10004000番地)に0x78(120)が保存される．
+
+\begin{lstlisting}[caption=5の階乗,label=list:factorial,numbers=left]
     define i;
     define factorial;
 
     i=0;
-    factorial=0;
+    factorial=1;
     while(i<5){
         i=i+1;
         factorial=factorial*i;
@@ -219,21 +229,29 @@ C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z
 
 \subsection{FizzBuzz問題}
 
-\begin{lstlisting}
+リスト\ref{list:fizzbuzz}はFizzBuzz問題を解くプログラムである．
+iはカウントのための変数，FizzBuzzは結果を保存する配列である．
+
+このコンパイラでは整数型しか対応していないため，Fizzの場合は0xff,
+Buzzは0xbb,FizzBuzzは0xfbを格納することとした．
+
+正しく動作すれば，配列FizzBuzz(0x10004000番地$\sim$)に0x1,0x2,0xff,0x4,0xbb,...が保存される．
+
+\begin{lstlisting}[caption=FizzBuzz,label=list:fizzbuzz,numbers=left]
     define i;
     array FizzBuzz[100];
 
     i=0;
     while(i<100){
-        FizzBuzz[i]=i;
+        FizzBuzz[i]=i+1;
 
-        if(i%5==0){
+        if((i+1)%5==0){
             FizzBuzz[i]=187;
-        }else if(i%3==0){
+        }else if((i+1)%3==0){
             FizzBuzz[i]=255;
         }
-        if(i%5==0){
-            if(i%3==0){
+        if((i+1)%5==0){
+            if((i+1)%3==0){
                 FizzBuzz[i]=251;
             }
         }
@@ -243,34 +261,40 @@ C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z
 
 \subsection{エラトステネスのふるいを用いて1から1000までの素数を調べる}
 
-\begin{lstlisting}
-    define dummy;
+リスト\ref{list:prime}はエラトステネスのふるいを用いて1から1000までの素数を調べるプログラムである．
+i,jはカウントのための変数，listは探索リスト，primeは素数を保存する配列である．
+
+正しく動作すれば，配列prime(0x10004000番地$\sim$)に0x2,0x3,0x5...のように素数が保存される．
+
+\begin{lstlisting}[caption=エラトステネスのふるい,label=list:prime,numbers=left]
     define i;
     define j;
     array list[1000];
-    array prime[500];
+    array prime[100];
     
     i=0;
-    while(i<999){
-        list[i]=i+2;
+    while(i<1000){
+        list[i]=1;
         i=i+1;
     }
-
+    list[0]=0;
     i=0;
-    while(i<10){
-        j=0;
-        while(j<999){
-            if(list[j]==0){
-                dummy=0;
-            } else {
-                prime[i]=list[j];
-                while(j<999){
-                    if(list[j]%prime[i]==0){
-                        list[j]=0;
-                    }
-                    j=j+1;
-                }
+    while(i<100){
+        if(list[i]==1){
+            j=i+1;
+            while((i+1)*j<1000+1){
+                list[(i+1)*j-1]=0;
+                j=j+1;
             }
+        }
+        i=i+1; 
+    }
+    
+    i=0;
+    j=0;
+    while(i<1000){
+        if(list[i]==1){
+            prime[j]=i+1;
             j=j+1;
         }
         i=i+1;
@@ -278,5 +302,213 @@ C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z
 \end{lstlisting}
 
 \subsection{2つの2$\times$2行列の積の計算}
+
+リスト\ref{list:mul}は2$\times$2行列の席を計算するプログラムである．
+
+i,j,kはカウントのための変数，a,bは計算する行列，ansは答えを保存する
+行列を表す配列である．
+
+\[
+    a=\left(
+        \begin{array}{cc}
+            1 & 2 \\
+            3 & 4
+        \end{array}
+    \right)
+\]
+\[
+    b=\left(
+        \begin{array}{cc}
+            1 & 2 \\
+            3 & 4
+        \end{array}
+    \right)
+\]
+
+正しく動作すれば，配列ans(0x10004000番地$\sim$)に0x7,0xa,0xf,0x16が保存される．
+
+\begin{lstlisting}[caption=行列の積,label=list:mul,numbers=left]
+    define i;
+    define j;
+    define k;
+    array a[4];
+    array b[4];
+    array ans[4];
+
+    a[0]=1;  a[1]=2;  a[2]=3;  a[3]=4;
+    b[0]=1;  b[1]=2;  b[2]=3;  b[3]=4;
+    ans[0]=0;ans[1]=0;ans[2]=0;ans[3]=0;
+    i=0;
+    while(i<2){
+        j=0;
+        while(j<2){
+            k=0;
+            while(k<2){
+                ans[2*i+j]=ans[2*i+j]+a[2*i+k]*b[2*k+j];
+                k=k+1;
+            }
+            j=j+1;
+        }
+        i=i+1;
+    }
+\end{lstlisting}
+
+\section{プログラムの実行結果とステップ数}
+
+\subsection{1から10までの数の和}
+
+mapsに，リスト\ref{list:1to10}をコンパイルしたアセンブラコード(test.asm)を
+ロードし，実行する(リスト\ref{list:1to10_result})．
+
+0x10004000番地に0x37(55)が格納されていることが確認できる．
+
+実行ステップ数は，553であった．
+
+\begin{lstlisting}[caption=1から10の和の結果,label=list:1to10_result]
+    maps.bat test.asm -i
+    > run
+    (省略)
+
+    > memdump 0x10004000
+    0x10004000: 00 00 00 37 00 00 00 0a - 00 00 00 00 00 00 00 00  ...7.... ........
+\end{lstlisting}
+
+\subsection{5の階乗}
+
+mapsに，リスト\ref{list:factorial}をコンパイルしたアセンブラコード(test.asm)を
+ロードし，実行する(リスト\ref{list:factorial_result}).
+
+0x10004000番地に0x78(120)が格納されていることが確認できる．
+
+実行ステップ数は，298であった．
+
+\begin{lstlisting}[caption=5の階乗の結果,label=list:factorial_result]
+    maps.bat test.asm -i
+    > run
+    (省略)
+
+    > memdump 0x10004000
+    0x10004000: 00 00 00 78 00 00 00 05 - 00 00 00 00 00 00 00 00  ...x.... ........
+\end{lstlisting}
+
+\subsection{FizzBuzz問題}
+
+mapsに，リスト\ref{list:fizzbuzz}をコンパイルしたアセンブラコード(test.asm)を
+ロードし，実行する(リスト\ref{list:fizzbuzz_result}).
+
+0x10004000番地に0x1,0x10004004番地に0x2,...が格納されている．
+3の倍数ではff, 5の倍数ではbb, 3の倍数でかつ5の倍数であればfbが格納されていることが確認できる．
+
+実行ステップ数は，16902であった．
+
+\begin{lstlisting}[caption=FizzBuzzの結果,label=list:fizzbuzz_result]
+    maps.bat test.asm -i
+    > run
+    (省略)
+
+    > memdump 0x10004000
+    0x10004000: 00 00 00 01 00 00 00 02 - 00 00 00 ff 00 00 00 04  ........ ........
+
+    > memdump 0x10004010
+    0x10004010: 00 00 00 bb 00 00 00 ff - 00 00 00 07 00 00 00 08  ........ ........
+
+    > memdump 0x10004020
+    0x10004020: 00 00 00 ff 00 00 00 bb - 00 00 00 0b 00 00 00 ff  ........ ........
+
+    > memdump 0x10004030
+    0x10004030: 00 00 00 0d 00 00 00 0e - 00 00 00 fb 00 00 00 10  ........ ........
+\end{lstlisting}
+
+\subsection{エラトステネスのふるいを用いて1から1000までの素数を調べる}
+
+mapsに，リスト\ref{list:prime}をコンパイルしたアセンブラコード(test.asm)を
+ロードし，実行する(リスト\ref{list:prime_result}).
+
+0x10004000番地から0x2,0x3,...と素数が格納されていることが確認できる．
+
+実行ステップ数は，256594であった．
+
+\begin{lstlisting}[caption=エラトステネスのふるいの結果,label=list:prime_result]
+    maps.bat test.asm -i
+    > run
+    (省略)
+    > memdump 0x10004000
+    0x10004000: 00 00 00 02 00 00 00 03 - 00 00 00 05 00 00 00 07  ........ ........
+    
+    > memdump 0x10004010
+    0x10004010: 00 00 00 0b 00 00 00 0d - 00 00 00 11 00 00 00 13  ........ ........
+    
+    > memdump 0x10004020
+    0x10004020: 00 00 00 17 00 00 00 1d - 00 00 00 1f 00 00 00 25  ........ ........
+    
+    > memdump 0x10004030
+    0x10004030: 00 00 00 29 00 00 00 2b - 00 00 00 2f 00 00 00 35  ........ .......5
+\end{lstlisting}
+
+\subsection{2つの2$\times$2行列の積の計算}
+
+mapsに，リスト\ref{list:mul}をコンパイルしたアセンブラコード(test.asm)を
+ロードし，実行する(リスト\ref{list:mul_result}).
+
+0x10004000番地から，0x7(7),0xa(10),0xf(15),0x16(22)が格納されていることが確認できる．
+
+実行ステップ数は，1915であった．
+
+\begin{lstlisting}[caption=2$\times$2行列の積の結果,label=list:mul_result]
+    maps.bat test.asm -i
+    > run
+    (省略)
+
+    > memdump 0x10004000 
+   0x10004000: 00 00 00 07 00 00 00 0a - 00 00 00 0f 00 00 00 16  ........ ........
+\end{lstlisting}
+
+\section{考察}
+
+\ref{sec:policy}節のプログラム作成方針に従い，リスト\ref{list:specific}の言語仕様に沿う
+プログラムをコンパイルするコンパイラを作成した．
+
+本章では，作成したコンパイラでステップ数を減らすにはどうすればよいのかを考察する．
+
+リスト\ref{list:fizzbuzz_kai}は，リスト\ref{list:fizzbuzz}を改良したFizzBuzzを解くプログラムである．
+改良した点は，whileループ内で2回以上出現する算術式の結果を変数に保存するようにした．
+これは，結果をメモリから読み出すことで，算術式のコード生成の数を減らすのが狙いだ．
+
+結果としては，ステップ数は16902から16722とあまり削減することができなかった．
+あまり変わらなかったこととして考えられるのが，
+算術式が短く，素直に算術式のコード生成した場合とメモリから取り出すコード生成した場合であまり変化がなかったからだと考えられる．
+また，同じ算術式が出現する回数が少なかったことも効果なかった原因である．
+
+さらに効果的にステップ数を減らす方法として，算術式の結果をレジスタに保存する方法を思いついたが，
+これにはコンパイラを書き直すことが必須であり，時間の関係上不可能と判断したため
+実装は見送ることとした．
+
+\begin{lstlisting}[caption=FizzBuzz改良版,label=list:fizzbuzz_kai,numbers=left]
+    define i;
+    define tmp3;
+    define tmp5;
+    define tmpi;
+    array FizzBuzz[100];
+
+    i=0;
+    while(i<100){
+        tmpi=i+1;
+        tmp3=tmpi%3;
+        tmp5=tmpi%5;
+        FizzBuzz[i]=i+1;
+
+        if(tmp5==0){
+            FizzBuzz[i]=187;
+        }else if(tmp3==0){
+            FizzBuzz[i]=255;
+        }
+        if(tmp5==0){
+            if(tmp3==0){
+                FizzBuzz[i]=251;
+            }
+        }
+        i=i+1;
+    }
+\end{lstlisting}
 
 \end{document}
